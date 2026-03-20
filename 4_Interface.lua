@@ -86,6 +86,74 @@ function Library.new(title)
     return self
 end
 
+-- =====================================================================
+-- 🌟 SISTEMA DE NOTIFICAÇÃO (TOAST) 🌟
+-- =====================================================================
+function Library:Notify(title, text, duration)
+    duration = duration or 3 -- Tempo padrão de 3 segundos
+    
+    local Notif = Instance.new("Frame")
+    Notif.Size = UDim2.new(1, 0, 0, 60)
+    Notif.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    Notif.BackgroundTransparency = 1 -- Começa invisível para a animação
+    Instance.new("UICorner", Notif).CornerRadius = UDim.new(0, 6)
+    
+    -- Efeito de Borda Lateral Colorida (Estilo Premium)
+    local SideBar = Instance.new("Frame")
+    SideBar.Size = UDim2.new(0, 4, 1, 0)
+    SideBar.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
+    SideBar.BorderSizePixel = 0
+    SideBar.BackgroundTransparency = 1
+    SideBar.Parent = Notif
+    Instance.new("UICorner", SideBar).CornerRadius = UDim.new(0, 6)
+    
+    local TitleLbl = Instance.new("TextLabel")
+    TitleLbl.Size = UDim2.new(1, -20, 0, 20)
+    TitleLbl.Position = UDim2.new(0, 15, 0, 5)
+    TitleLbl.BackgroundTransparency = 1
+    TitleLbl.Text = title
+    TitleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleLbl.TextTransparency = 1
+    TitleLbl.Font = Enum.Font.GothamBold
+    TitleLbl.TextSize = 13
+    TitleLbl.TextXAlignment = Enum.TextXAlignment.Left
+    TitleLbl.Parent = Notif
+
+    local DescLbl = Instance.new("TextLabel")
+    DescLbl.Size = UDim2.new(1, -20, 0, 30)
+    DescLbl.Position = UDim2.new(0, 15, 0, 25)
+    DescLbl.BackgroundTransparency = 1
+    DescLbl.Text = text
+    DescLbl.TextColor3 = Color3.fromRGB(180, 180, 180)
+    DescLbl.TextTransparency = 1
+    DescLbl.Font = Enum.Font.Gotham
+    DescLbl.TextSize = 11
+    DescLbl.TextWrapped = true
+    DescLbl.TextXAlignment = Enum.TextXAlignment.Left
+    DescLbl.Parent = Notif
+
+    Notif.Parent = self.NotifyFrame
+
+    -- Animação de Entrada (Fade In)
+    local TweenService = getgenv().TweenService
+    TweenService:Create(Notif, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(SideBar, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
+    TweenService:Create(TitleLbl, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+    TweenService:Create(DescLbl, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
+
+    -- Temporizador para destruir (Fade Out)
+    task.spawn(function()
+        task.wait(duration)
+        local fadeOut = TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1})
+        TweenService:Create(SideBar, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
+        TweenService:Create(TitleLbl, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+        TweenService:Create(DescLbl, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
+        fadeOut:Play()
+        fadeOut.Completed:Wait()
+        Notif:Destroy()
+    end)
+end
+
 function Library:CreateTab(name, icon)
     local Tab = {}
     Tab.Window = self
@@ -295,4 +363,10 @@ local TabMisc = UI:CreateTab("Misc", "⚙️")
 TabMisc:CreateToggle("Super Velocidade", HubConfig.SuperSpeed, function(v) HubConfig.SuperSpeed = v end)
 TabMisc:CreateToggle("Pulo Infinito", HubConfig.InfJump, function(v) HubConfig.InfJump = v end)
 
-print("✅ Comunidade Hub - Interface OOP Carregada!")
+-- Compartilha o sistema de notificação com os outros arquivos
+getgenv().SendToast = function(titulo, texto, tempo)
+    UI:Notify(titulo, texto, tempo)
+end
+
+-- Notificação de Boas-vindas automática!
+getgenv().SendToast("Hub Carregado", "Bem-vindo de volta! Suas configurações foram carregadas com sucesso.", 4)

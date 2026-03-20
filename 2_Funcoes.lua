@@ -101,6 +101,37 @@ getgenv().getCurrentIsland = function()
     return closestIsland
 end
 
+-- 🌟 NOVA FUNÇÃO: AUTO SAVE SPAWN INTELIGENTE 🌟
+getgenv().AutoSaveSpawn = function()
+    pcall(function()
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            local name = string.lower(obj.Name)
+            -- Procura qualquer coisa que lembre um NPC ou placa de Spawn
+            if name:find("spawn") or name:find("setspawn") or name:find("checkpoint") then
+                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) or (obj.Parent and obj.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+                if prompt then
+                    local char = LP.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        local hrp = char.HumanoidRootPart
+                        local oldCFrame = hrp.CFrame
+                        local targetCFrame = obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.CFrame or (obj:IsA("BasePart") and obj.CFrame)
+                        
+                        if targetCFrame then
+                            -- Dá um pulo instantâneo até o botão de spawn, salva e volta
+                            hrp.CFrame = targetCFrame
+                            task.wait(0.5)
+                            if fireproximityprompt then fireproximityprompt(prompt) end
+                            task.wait(0.5)
+                            hrp.CFrame = oldCFrame
+                            return true
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
 getgenv().lastTeleportTime = 0
 getgenv().SmartIslandTeleport = function(islandName)
     if not islandName or islandName == "Eventos (Timed Bosses)" then return false end
@@ -112,7 +143,8 @@ getgenv().SmartIslandTeleport = function(islandName)
         getgenv().lastTeleportTime = tick()
         getgenv().CurrentTarget = nil
         getgenv().FarmTarget = nil
-        task.wait(1.5) 
+        task.wait(2) -- Espera 2 segundos o mapa novo carregar
+        getgenv().AutoSaveSpawn() -- Tenta salvar o spawn assim que chega na ilha!
         return true
     end
     return false
@@ -302,7 +334,11 @@ getgenv().executeAttackLogic = function(target)
     local targetCFrame = CFrame.new(pos, targetHrp.Position)
     local distance = (hrp.Position - pos).Magnitude
     
-    if distance > 15 then
+    -- 🛡️ PROTEÇÃO ANTI-DISCONNECT: Cancela o voo se a distância for maior que 1000 studs
+    if distance > 1000 then
+        getgenv().FarmTarget = nil
+        return false -- Ao retornar false, o Motor de Quest é forçado a reavaliar e usar o Portal!
+    elseif distance > 15 then
         TweenService:Create(hrp, TweenInfo.new(distance / HubConfig.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
         getgenv().FarmTarget = nil
     else

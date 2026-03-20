@@ -451,10 +451,27 @@ MundoPronto = true
 
 -- ABA 8: NATIVOS
 local TabNativos = UI:CreateTab("Nativos", "🕵️‍♂️")
-TabNativos:CreateLabel("HACKS NATIVOS (Indetectáveis)")
-TabNativos:CreateToggle("Haki do Armamento", HubConfig.HacksNativos.HakiArmamento, function(v) HubConfig.HacksNativos.HakiArmamento = v; pcall(function() LP:SetAttribute("AutoArmHaki", v) end) end)
-TabNativos:CreateToggle("Haki da Observação", HubConfig.HacksNativos.HakiObservacao, function(v) HubConfig.HacksNativos.HakiObservacao = v; pcall(function() LP:SetAttribute("AutoObsHaki", v) end) end)
-TabNativos:CreateToggle("Hack de Pulos Extras", HubConfig.HacksNativos.PuloExtra, function(v) HubConfig.HacksNativos.PuloExtra = v; if not v then pcall(function() LP:SetAttribute("RaceExtraJumps", 0) end) end end)
+TabNativos:CreateLabel("HACKS NATIVOS (Controle de Remotes)")
+
+TabNativos:CreateToggle("Haki do Armamento", HubConfig.HacksNativos.HakiArmamento, function(v) 
+    HubConfig.HacksNativos.HakiArmamento = v
+    if getgenv().HakiArmamentoRemote then
+        getgenv().HakiArmamentoRemote:FireServer("Toggle")
+    end
+end)
+
+TabNativos:CreateToggle("Haki da Observação", HubConfig.HacksNativos.HakiObservacao, function(v) 
+    HubConfig.HacksNativos.HakiObservacao = v
+    if getgenv().HakiObservacaoRemote then
+        getgenv().HakiObservacaoRemote:FireServer("Toggle")
+    end
+end)
+
+TabNativos:CreateToggle("Hack de Pulos Extras", HubConfig.HacksNativos.PuloExtra, function(v) 
+    HubConfig.HacksNativos.PuloExtra = v
+    if not v then pcall(function() LP:SetAttribute("RaceExtraJumps", 0) end) end 
+end)
+
 TabNativos:CreateLabel("QUALIDADE DE VIDA")
 TabNativos:CreateToggle("Remover Tremores (NoShake)", HubConfig.HacksNativos.NoShake, function(v) HubConfig.HacksNativos.NoShake = v; pcall(function() LP:SetAttribute("DisableScreenShake", v) end) end)
 TabNativos:CreateToggle("Pular Animações (NoCutscene)", HubConfig.HacksNativos.NoCutscene, function(v) HubConfig.HacksNativos.NoCutscene = v; pcall(function() LP:SetAttribute("DisableCutscene", v) end) end)

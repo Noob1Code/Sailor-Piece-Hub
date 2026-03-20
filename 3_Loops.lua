@@ -1,9 +1,37 @@
+-- IMPORTAÇÕES GLOBAIS
+local LP = getgenv().LP
+local Workspace = getgenv().Workspace
+local RunService = getgenv().RunService
+local UserInputService = getgenv().UserInputService
+local HubConfig = getgenv().HubConfig
+local QuestProgression = getgenv().QuestProgression
+local CombatRemote = getgenv().CombatRemote
+local AbilityRemote = getgenv().AbilityRemote
+local AllocateStatRemote = getgenv().AllocateStatRemote
+local ResetStatsRemote = getgenv().ResetStatsRemote
+local UseItemRemote = getgenv().UseItemRemote
+local TraitRerollRemote = getgenv().TraitRerollRemote
+local RerollSingleStatRemote = getgenv().RerollSingleStatRemote
+local scriptConnections = getgenv().scriptConnections
+
+local getCurrentIsland = getgenv().getCurrentIsland
+local getQuestDataByName = getgenv().getQuestDataByName
+local getIslandByTarget = getgenv().getIslandByTarget
+local isQuestActive = getgenv().isQuestActive
+local SmartIslandTeleport = getgenv().SmartIslandTeleport
+local SafeTeleport = getgenv().SafeTeleport
+local getValidTarget = getgenv().getValidTarget
+local executeAttackLogic = getgenv().executeAttackLogic
+local unfreezeCharacter = getgenv().unfreezeCharacter
+local isSafePrompt = getgenv().isSafePrompt
+local TeleportAndCollectFruit = getgenv().TeleportAndCollectFruit
+
 -- Monitor de Frutas (Sniper)
 table.insert(scriptConnections, Workspace.DescendantAdded:Connect(TeleportAndCollectFruit))
 
 -- Movimentação e Motor de Quest
 task.spawn(function()
-    while isRunning and task.wait(0.05) do
+    while getgenv().isRunning and task.wait(0.05) do
         local attacking = false
         local myIsland = getCurrentIsland()
         
@@ -31,7 +59,7 @@ task.spawn(function()
                             SmartIslandTeleport(npcIsland)
                             attacking = true 
                         else
-                            CurrentTarget = nil 
+                            getgenv().CurrentTarget = nil 
                             local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(questData.NPC)
                             if npc and npc:FindFirstChild("HumanoidRootPart") then
                                 local tween = SafeTeleport(npc, 1.5)
@@ -76,14 +104,18 @@ task.spawn(function()
                 end
             end
         end
-        if not attacking then FarmTarget = nil; pcall(function() unfreezeCharacter(LP.Character) end) end
+        if not attacking then 
+            getgenv().FarmTarget = nil
+            pcall(function() unfreezeCharacter(LP.Character) end) 
+        end
     end
 end)
 
 -- Spam de Combate
 task.spawn(function()
-    while isRunning and task.wait(0.1) do
-        if FarmTarget and FarmTarget:FindFirstChild("Humanoid") and FarmTarget.Humanoid.Health > 0 then
+    while getgenv().isRunning and task.wait(0.1) do
+        local ft = getgenv().FarmTarget
+        if ft and ft:FindFirstChild("Humanoid") and ft.Humanoid.Health > 0 then
             pcall(function()
                 if CombatRemote then CombatRemote:FireServer() end
                 if AbilityRemote then for i = 1, 4 do AbilityRemote:FireServer(i) end end
@@ -94,7 +126,7 @@ end)
 
 -- Coleta Mapa Tradicional
 task.spawn(function()
-    while isRunning and task.wait(1) do
+    while getgenv().isRunning and task.wait(1) do
         pcall(function()
             if not (HubConfig.AutoCollect.Fruits or HubConfig.AutoCollect.Hogyoku or HubConfig.AutoCollect.Puzzles or HubConfig.AutoCollect.Chests) then return end
             for _, obj in pairs(Workspace:GetDescendants()) do
@@ -124,7 +156,7 @@ end)
 
 -- Group Reward
 task.spawn(function()
-    while isRunning and task.wait(5) do
+    while getgenv().isRunning and task.wait(5) do
         if HubConfig.AutoGroupReward then
             pcall(function()
                 local serviceFolder = Workspace:FindFirstChild("ServiceNPCs")
@@ -143,7 +175,7 @@ end)
 
 -- Auto Stats
 task.spawn(function()
-    while isRunning and task.wait(0.5) do
+    while getgenv().isRunning and task.wait(0.5) do
         if HubConfig.AutoStats then
             pcall(function()
                 local data = LP:FindFirstChild("Data")
@@ -167,7 +199,7 @@ end)
 
 -- Auto Reroll & Baús Inventário
 task.spawn(function()
-    while isRunning and task.wait(1.5) do
+    while getgenv().isRunning and task.wait(1.5) do
         pcall(function()
             if UseItemRemote then
                 if HubConfig.AutoReroll.Race then

@@ -445,6 +445,10 @@ getgenv().TeleportAndCollectFruit = function(child)
                 if pos then
                     local char = LP.Character
                     if char and char:FindFirstChild("HumanoidRootPart") then
+                        if getgenv().SendToast then
+                            getgenv().SendToast("🍎 Fruta Encontrada!", "Sniper ativado para coletar: " .. child.Name, 4)
+                        end
+                        
                         char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
                         task.wait(0.5)
                         if prompt and fireproximityprompt then fireproximityprompt(prompt) end

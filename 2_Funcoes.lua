@@ -263,10 +263,7 @@ getgenv().isQuestActive = function(questData)
                 if vis then
                     if not questData then return true end
                     
-                    -- Limpa Boss/Mini, passa pra minúsculo e REMOVE TODOS OS ESPAÇOS (%s+)
                     local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
-                    
-                    -- Pega o texto da missão e também REMOVE OS ESPAÇOS
                     local uiText = desc.Text:lower():gsub("%s+", "")
                     local titleText = ""
                     
@@ -278,8 +275,15 @@ getgenv().isQuestActive = function(questData)
                         end
                     end
                     
-                    -- Agora "strongsorcerer" vai dar match perfeito com "strongsorcerer" da tela!
+                    local isMatch = false
                     if uiText:find(targetBase) or titleText:find(targetBase) then
+                        isMatch = true
+                        if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then
+                            isMatch = false
+                        end
+                    end
+                    
+                    if isMatch then
                         local curr, max = desc.Text:match("(%d+)/(%d+)")
                         if curr and max and tonumber(curr) < tonumber(max) then return true end
                     end

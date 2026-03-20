@@ -221,6 +221,15 @@ BossDropdownRef = UI.CreateDropdown(TabCombat, "Boss", HubConfig.Bosses, "Nenhum
 UI.CreateToggle(TabCombat, "Auto Boss", false, function(v) HubConfig.AutoBoss = v end)
 UI.CreateToggle(TabCombat, "Auto Training Dummy", false, function(v) HubConfig.AutoDummy = v end)
 UI.CreateLabel(TabCombat, "--------------------------------------------------------")
+UI.CreateLabel(TabCombat, "⚙️ INTELIGÊNCIA DE COMBATE")
+UI.CreateDropdown(TabCombat, "Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, HubConfig.AttackPosition, function(s) 
+    HubConfig.AttackPosition = s 
+end)
+UI.CreateTextBox(TabCombat, "Distância do Alvo (Studs)", HubConfig.Distance, function(v) 
+    HubConfig.Distance = tonumber(v) or 5 
+end)
+
+UI.CreateLabel(TabCombat, "--------------------------------------------------------")
 UI.CreateLabel(TabCombat, "🗡️ ESCOLHA SUA ARMA")
 UI.CreateButton(TabCombat, "Atualizar Lista de Armas no Inventário", function() HubConfig.AvailableWeapons = getWeaponList(); if WeaponDropdownRef then WeaponDropdownRef.Refresh(HubConfig.AvailableWeapons) end end)
 WeaponDropdownRef = UI.CreateDropdown(TabCombat, "Arma para Auto Farm", HubConfig.AvailableWeapons, "Nenhuma", function(s) HubConfig.SelectedWeapon = s end)

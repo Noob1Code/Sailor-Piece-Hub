@@ -428,18 +428,18 @@ TabStats:CreateButton("🔄 Reset Status", function() if ResetStatsRemote then R
 task.spawn(function() while getgenv().isRunning and task.wait(1) do pcall(function() local data = LP:FindFirstChild("Data"); if data and data:FindFirstChild("StatPoints") then InfoPoints.Text = "Pontos Disponíveis: " .. tostring(data.StatPoints.Value) else InfoPoints.Text = "Pontos Disponíveis: 0" end end) end end)
 
 -- ABA 6: ROLETA
-local TabRoleta = UI.CreateTab("Roleta", "🎲")
-UI.CreateTextBox(TabRoleta, "Raça Sniper", HubConfig.AutoReroll.TargetRace, function(v) HubConfig.AutoReroll.TargetRace = tostring(v) end)
-UI.CreateToggle(TabRoleta, "Iniciar Sniper Raça", false, function(v) HubConfig.AutoReroll.Race = v end)
+local TabRoleta = UI:CreateTab("Roleta", "🎲")
+TabRoleta:CreateTextBox("Raça Sniper", HubConfig.AutoReroll.TargetRace, function(v) HubConfig.AutoReroll.TargetRace = tostring(v) end)
+TabRoleta:CreateToggle("Iniciar Sniper Raça", HubConfig.AutoReroll.Race, function(v) HubConfig.AutoReroll.Race = v end)
 
-UI.CreateLabel(TabRoleta, "--------------------------------------------------------")
-UI.CreateLabel(TabRoleta, "📦 ABERTURA DE BAÚS")
-UI.CreateTextBox(TabRoleta, "Quantidade (9999 = Máximo)", HubConfig.ChestOpenAmount or 1, function(v) HubConfig.ChestOpenAmount = tonumber(v) or 1 end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Comuns", false, function(v) HubConfig.AutoOpenChests.Common = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Raros", false, function(v) HubConfig.AutoOpenChests.Rare = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Épicos", false, function(v) HubConfig.AutoOpenChests.Epic = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Lendários", false, function(v) HubConfig.AutoOpenChests.Legendary = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Míticos", false, function(v) HubConfig.AutoOpenChests.Mythical = v end)
+TabRoleta:CreateLabel("--------------------------------------------------------")
+TabRoleta:CreateLabel("📦 ABERTURA DE BAÚS")
+TabRoleta:CreateTextBox("Quantidade (9999 = Máximo)", HubConfig.ChestOpenAmount or 1, function(v) HubConfig.ChestOpenAmount = tonumber(v) or 1 end)
+TabRoleta:CreateToggle("Abrir Baús Comuns", HubConfig.AutoOpenChests.Common, function(v) HubConfig.AutoOpenChests.Common = v end)
+TabRoleta:CreateToggle("Abrir Baús Raros", HubConfig.AutoOpenChests.Rare, function(v) HubConfig.AutoOpenChests.Rare = v end)
+TabRoleta:CreateToggle("Abrir Baús Épicos", HubConfig.AutoOpenChests.Epic, function(v) HubConfig.AutoOpenChests.Epic = v end)
+TabRoleta:CreateToggle("Abrir Baús Lendários", HubConfig.AutoOpenChests.Legendary, function(v) HubConfig.AutoOpenChests.Legendary = v end)
+TabRoleta:CreateToggle("Abrir Baús Míticos", HubConfig.AutoOpenChests.Mythical, function(v) HubConfig.AutoOpenChests.Mythical = v end)
 
 -- ABA 7: MUNDO
 local TabWorld = UI:CreateTab("Mundo", "🌍")

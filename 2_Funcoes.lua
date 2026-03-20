@@ -51,7 +51,7 @@ end
 getgenv().getIslandByTarget = function(typeStr, name)
     for island, data in pairs(IslandDataMap) do
         if typeStr == "Mob" then
-            for _, mob in ipairs(data.Mobs) do if string.find(name, mob) or mob == name then return island end end
+            for _, mob in ipairs(data.Mobs) do if mob == name then return island end end
         elseif typeStr == "Boss" then
             for _, boss in ipairs(data.Bosses) do if boss == name then return island end end
         end
@@ -209,7 +209,7 @@ getgenv().getMobList = function(filter)
                     if filter == "Todas" or not filter then addToList = true else
                         local filterData = IslandDataMap[filter]
                         if filterData and filterData.Mobs then
-                            for _, prefix in ipairs(filterData.Mobs) do if baseName:find(prefix) then addToList = true break end end
+                            for _, prefix in ipairs(filterData.Mobs) do if baseName == prefix then addToList = true break end end
                         end
                     end
                     if addToList then seen[baseName] = true; table.insert(mobs, baseName) end

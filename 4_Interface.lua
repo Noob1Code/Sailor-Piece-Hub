@@ -380,18 +380,55 @@ TabCombat:CreateButton("Varrer Ilha (Atualizar NPCs Existentes)", function() Hub
 TabCombat:CreateDropdown("Filtrar por Área", HubConfig.FilterOptions, HubConfig.SelectedFilter, function(s) HubConfig.SelectedFilter = s; HubConfig.AvailableMobs = getMobList(s); HubConfig.Bosses = getBossList(s); if getgenv().MobDropdownRef then getgenv().MobDropdownRef.Refresh(HubConfig.AvailableMobs) end; if getgenv().BossDropdownRef then getgenv().BossDropdownRef.Refresh(HubConfig.Bosses) end end)
 getgenv().MobDropdownRef = TabCombat:CreateDropdown("Inimigo", HubConfig.AvailableMobs, HubConfig.SelectedMob, function(s) HubConfig.SelectedMob = s end)
 TabCombat:CreateToggle("Auto Farm Mobs", HubConfig.AutoFarm, function(v) HubConfig.AutoFarm = v end)
+
 TabCombat:CreateLabel("--------------------------------------------------------")
+TabCombat:CreateLabel("👑 FILA DE BOSSES")
+local BossListLabel = TabCombat:CreateLabel("Fila: Nenhuma")
+
+local function UpdateBossListLabel()
+    if #HubConfig.SelectedBosses == 0 then
+        BossListLabel.Text = "Fila: Nenhuma"
+    else
+        BossListLabel.Text = "Fila: " .. table.concat(HubConfig.SelectedBosses, ", ")
+    end
+end
+
 TabCombat:CreateTextBox("Buscar Boss (Digite e Enter)", "", function(text)
     local currentBosses = getBossList(HubConfig.SelectedFilter); local filtered = {}; text = tostring(text):lower()
     if text == "" then filtered = currentBosses else table.insert(filtered, "Nenhum"); for _, boss in ipairs(currentBosses) do if boss ~= "Nenhum" and boss:lower():find(text) then table.insert(filtered, boss) end end end
     if getgenv().BossDropdownRef then getgenv().BossDropdownRef.Refresh(filtered) end
 end)
-getgenv().BossDropdownRef = TabCombat:CreateDropdown("Boss", HubConfig.Bosses, HubConfig.SelectedBoss, function(s) HubConfig.SelectedBoss = s end)
-TabCombat:CreateToggle("Auto Boss", HubConfig.AutoBoss, function(v) HubConfig.AutoBoss = v end)
+getgenv().BossDropdownRef = TabCombat:CreateDropdown("Selecionar Boss", HubConfig.Bosses, HubConfig.SelectedBoss, function(s) HubConfig.SelectedBoss = s end)
+
+TabCombat:CreateButton("➕ Adicionar Boss à Fila", function()
+    if HubConfig.SelectedBoss ~= "Nenhum" and not table.find(HubConfig.SelectedBosses, HubConfig.SelectedBoss) then
+        table.insert(HubConfig.SelectedBosses, HubConfig.SelectedBoss)
+        UpdateBossListLabel()
+        if getgenv().SaveSettings then getgenv().SaveSettings() end
+    end
+end, Color3.fromRGB(40, 150, 80))
+
+TabCombat:CreateButton("➖ Remover Boss da Fila", function()
+    local idx = table.find(HubConfig.SelectedBosses, HubConfig.SelectedBoss)
+    if idx then
+        table.remove(HubConfig.SelectedBosses, idx)
+        UpdateBossListLabel()
+        if getgenv().SaveSettings then getgenv().SaveSettings() end
+    end
+end, Color3.fromRGB(200, 60, 60))
+
+TabCombat:CreateButton("🗑️ Limpar Fila", function()
+    HubConfig.SelectedBosses = {}
+    UpdateBossListLabel()
+    if getgenv().SaveSettings then getgenv().SaveSettings() end
+end, Color3.fromRGB(200, 100, 60))
+
+TabCombat:CreateToggle("Auto Boss (Fila)", HubConfig.AutoBoss, function(v) HubConfig.AutoBoss = v end)
 TabCombat:CreateToggle("Auto Training Dummy", HubConfig.AutoDummy, function(v) HubConfig.AutoDummy = v end)
 
 TabCombat:CreateLabel("--------------------------------------------------------")
-TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE COMBATE")
+TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE COMBATE E MOVIMENTO")
+TabCombat:CreateTextBox("Velocidade do Voo (Padrão 150, Menor=Lento)", HubConfig.TweenSpeed, function(v) HubConfig.TweenSpeed = tonumber(v) or 150; if getgenv().SaveSettings then getgenv().SaveSettings() end end)
 TabCombat:CreateDropdown("Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, HubConfig.AttackPosition, function(s) HubConfig.AttackPosition = s end)
 TabCombat:CreateTextBox("Distância do Alvo (Studs)", HubConfig.Distance, function(v) HubConfig.Distance = tonumber(v) or 5 end)
 
@@ -399,6 +436,9 @@ TabCombat:CreateLabel("--------------------------------------------------------"
 TabCombat:CreateLabel("🗡️ ESCOLHA SUA ARMA")
 TabCombat:CreateButton("Atualizar Lista de Armas no Inventário", function() HubConfig.AvailableWeapons = getWeaponList(); if getgenv().WeaponDropdownRef then getgenv().WeaponDropdownRef.Refresh(HubConfig.AvailableWeapons) end end)
 getgenv().WeaponDropdownRef = TabCombat:CreateDropdown("Arma para Auto Farm", HubConfig.AvailableWeapons, HubConfig.SelectedWeapon, function(s) HubConfig.SelectedWeapon = s end)
+
+-- Garante que a interface carregue a lista visualmente se já houver salvamento
+UpdateBossListLabel()
 
 -- ABA 4: ITENS
 local TabCollect = UI:CreateTab("Itens", "🎒")

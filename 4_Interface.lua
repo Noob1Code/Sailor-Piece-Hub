@@ -72,7 +72,17 @@ function Library.new(title)
         self.MainFrame:TweenSize(isMinimized and UDim2.new(0, 540, 0, 40) or UDim2.new(0, 540, 0, 460), "Out", "Quart", 0.3, true)
         self.TabSelector.Visible = not isMinimized; self.ContentContainer.Visible = not isMinimized
     end)
+    self.NotifyFrame = Instance.new("Frame")
+    self.NotifyFrame.Size = UDim2.new(0, 220, 1, -20)
+    self.NotifyFrame.Position = UDim2.new(1, -240, 0, 10)
+    self.NotifyFrame.BackgroundTransparency = 1
+    self.NotifyFrame.Parent = self.ScreenGui
 
+    local NotifyLayout = Instance.new("UIListLayout")
+    NotifyLayout.Parent = self.NotifyFrame
+    NotifyLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom 
+    NotifyLayout.Padding = UDim.new(0, 10)
     return self
 end
 

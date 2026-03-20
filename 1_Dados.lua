@@ -30,6 +30,8 @@ getgenv().TitleEquipRemote = nil
 getgenv().DisplayTitleEquipRemote = nil
 getgenv().TraitRerollRemote = nil
 getgenv().RerollSingleStatRemote = nil
+getgenv().HakiArmamentoRemote = nil
+getgenv().HakiObservacaoRemote = nil
 
 pcall(function()
     getgenv().CombatRemote = RS:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
@@ -42,6 +44,8 @@ pcall(function()
     getgenv().DisplayTitleEquipRemote = RS:FindFirstChild("DisplayTitleEquip", true)
     getgenv().TraitRerollRemote = RS:FindFirstChild("TraitReroll", true)
     getgenv().RerollSingleStatRemote = RS:FindFirstChild("RerollSingleStat", true)
+    getgenv().HakiArmamentoRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("HakiRemote")
+    getgenv().HakiObservacaoRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("ObservationHakiRemote")
 end)
 
 -- DICIONÁRIO DE TELEPORTE

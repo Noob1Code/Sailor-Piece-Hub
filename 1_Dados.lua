@@ -54,7 +54,7 @@ getgenv().HubConfig = {
     AutoReroll = { Race = false, TargetRace = "Kitsune", Clan = false, TargetClan = "Gojo" },
     AutoTrait = false, AutoStatReroll = false, SelectedStatToReroll = "Damage", StatsToRerollList = {"Damage", "Luck", "Health", "Defense"},
     Islands = {"Starter", "Jungle", "Desert", "Snow", "Sailor", "Shibuya", "HuecoMundo", "Boss", "Dungeon", "Shinjuku", "Slime", "Academy", "Judgement", "SoulSociety"},
-    NPCs = {"GroupRewardNPC", "BossRushShopNPC", "BossRushPortalNPC", "DungeonMerchantNPC", "EnchantNPC", "YujiBuyerNPC", "BlessingNPC", "SlimeCraftNPC", "RimuruMasteryNPC", "SkillTreeNPC", "Katana", "MadokaBuyer"},
+    NPCs = {"GroupRewardNPC", "BossRushShopNPC", "BossRushPortalNPC", "DungeonMerchantNPC", "EnchantNPC", "YujiBuyerNPC", "BlessingNPC", "SlimeCraftNPC", "RimuruMasteryNPC", "SkillTreeNPC", "Katana", "MadokaBuyer", "HakiQuestNPC"},
     HacksNativos = { HakiArmamento = false, HakiObservacao = false, NoShake = false, NoCutscene = false, DisablePvP = false, PuloExtra = false },
     FruitSniper = false
 }

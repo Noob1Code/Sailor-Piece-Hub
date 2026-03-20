@@ -9,7 +9,6 @@ getgenv().RunService = game:GetService("RunService")
 getgenv().LP = Players.LocalPlayer
 
 -- REMOTES
--- REMOTES
 getgenv().CombatRemote = nil
 getgenv().AbilityRemote = nil
 getgenv().TeleportRemote = nil

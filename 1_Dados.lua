@@ -50,7 +50,7 @@ getgenv().HubConfig = {
     AutoGroupReward = false, 
     AutoStats = false, SelectedStats = {}, StatsList = {"Melee", "Defense", "Sword", "Power"}, ManualStat = "Melee", ManualAmount = 1,
     SuperSpeed = false, SpeedMultiplier = 2, InfJump = false,
-    AutoOpenChests = { Common = false, Rare = false, Epic = false, Mythical = false },
+    AutoOpenChests = { Common = false, Rare = false, Epic = false, Legendary = false, Mythical = false }, ChestOpenAmount = 1,
     AutoReroll = { Race = false, TargetRace = "Kitsune", Clan = false, TargetClan = "Gojo" },
     AutoTrait = false, AutoStatReroll = false, SelectedStatToReroll = "Damage", StatsToRerollList = {"Damage", "Luck", "Health", "Defense"},
     Islands = {"Starter", "Jungle", "Desert", "Snow", "Sailor", "Shibuya", "HuecoMundo", "Boss", "Dungeon", "Shinjuku", "Slime", "Academy", "Judgement", "SoulSociety"},

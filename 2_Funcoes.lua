@@ -1,3 +1,4 @@
+-- IMPORTAÇÕES GLOBAIS
 local LP = getgenv().LP
 local TweenService = getgenv().TweenService
 local Workspace = getgenv().Workspace
@@ -238,15 +239,18 @@ getgenv().getQuestDataByName = function(island, name)
     return nil
 end
 
+-- 🌟 SISTEMA DE CACHE DE INTERFACE 🌟
 getgenv().QuestGuiCache = nil 
 getgenv().isQuestActive = function(questData)
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
 
+    -- 1. Verifica se o Cache existe e ainda está válido na tela
     local desc = getgenv().QuestGuiCache
     if not desc or not desc.Parent or not desc.Visible then
         getgenv().QuestGuiCache = nil
         
+        -- Só varre a UI se o cache for perdido
         for _, obj in ipairs(pg:GetDescendants()) do
             if obj:IsA("TextLabel") and obj.Name == "QuestRequirement" and obj.Text:find("/") then
                 local isVis = true
@@ -267,6 +271,7 @@ getgenv().isQuestActive = function(questData)
     if not desc then return false end
     if not questData then return true end
 
+    -- 2. Validação usando o texto do Cache salvo
     local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
     local uiText = desc.Text:lower():gsub("%s+", "")
     local titleText = ""
@@ -369,6 +374,7 @@ getgenv().equipWeapon = function()
     end
 end
 
+-- ⚔️ COMBATE INTELIGENTE (ORBITAL & MIRA) ⚔️
 getgenv().OrbitAngle = 0
 getgenv().executeAttackLogic = function(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then 
@@ -386,9 +392,11 @@ getgenv().executeAttackLogic = function(target)
     if forcedSafe and finalPos == "Abaixo" then finalPos = "Acima" end
     
     local pos
+    -- INTELIGÊNCIA DE MOVIMENTAÇÃO:
     if finalPos == "Orbital" then
-        getgenv().OrbitAngle = getgenv().OrbitAngle + math.rad(15)
+        getgenv().OrbitAngle = getgenv().OrbitAngle + math.rad(15) -- Velocidade do giro
         local radius = HubConfig.Distance
+        -- Gira em volta do inimigo, ligeiramente acima da cabeça dele para fugir do raio de explosões no chão
         pos = targetHrp.Position + Vector3.new(math.cos(getgenv().OrbitAngle) * radius, 5, math.sin(getgenv().OrbitAngle) * radius)
     elseif finalPos == "Atrás" then 
         pos = targetHrp.Position - (targetHrp.CFrame.LookVector * HubConfig.Distance)
@@ -398,6 +406,7 @@ getgenv().executeAttackLogic = function(target)
         pos = targetHrp.Position + Vector3.new(0, HubConfig.Distance, 0) 
     end
     
+    -- INTELIGÊNCIA DE MIRA: Sempre encara o NPC
     local targetCFrame = CFrame.new(pos, targetHrp.Position)
     local distance = (hrp.Position - pos).Magnitude
     

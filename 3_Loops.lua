@@ -1,4 +1,3 @@
--- IMPORTAÇÕES GLOBAIS
 local LP = getgenv().LP
 local Workspace = getgenv().Workspace
 local RunService = getgenv().RunService
@@ -26,15 +25,16 @@ local unfreezeCharacter = getgenv().unfreezeCharacter
 local isSafePrompt = getgenv().isSafePrompt
 local TeleportAndCollectFruit = getgenv().TeleportAndCollectFruit
 
--- Monitor de Frutas (Sniper)
 table.insert(scriptConnections, Workspace.DescendantAdded:Connect(TeleportAndCollectFruit))
 
--- Movimentação e Motor de Quest
+getgenv().CurrentIslandCache = "Starter"
+
 task.spawn(function()
-    while getgenv().isRunning and task.wait(0.05) do
-        local attacking = false
-        local myIsland = getCurrentIsland()
-        
+    while getgenv().isRunning and task.wait(1) do
+        getgenv().CurrentIslandCache = getCurrentIsland()
+        local myIsland = getgenv().CurrentIslandCache
+        local hasAction = false
+
         if HubConfig.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
             local currentLevel = data and data:FindFirstChild("Level") and data.Level.Value or 1
@@ -57,61 +57,90 @@ task.spawn(function()
                     if not isQuestActive(questData) then
                         if myIsland and myIsland ~= npcIsland and npcIsland ~= "Eventos (Timed Bosses)" then
                             SmartIslandTeleport(npcIsland)
-                            attacking = true 
+                            hasAction = true 
                         else
-                            getgenv().CurrentTarget = nil 
                             local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(questData.NPC)
-                            if npc and npc:FindFirstChild("HumanoidRootPart") then
-                                local tween = SafeTeleport(npc, 1.5)
-                                if tween then
-                                    tween.Completed:Wait()
-                                    task.wait(0.4)
-                                    local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                    if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-                                    task.wait(1) 
-                                end
-                            end
-                            attacking = true 
+                            getgenv().InteractionTarget = npc
+                            getgenv().FarmTarget = nil
+                            hasAction = true 
                         end
                     else
                         if myIsland and myIsland ~= mobIsland and mobIsland ~= "Eventos (Timed Bosses)" then
                             SmartIslandTeleport(mobIsland)
-                            attacking = true
+                            hasAction = true
                         else
-                            attacking = executeAttackLogic(getValidTarget(questData.Type or "Mob", questData.Target))
+                            getgenv().InteractionTarget = nil
+                            getgenv().FarmTarget = getValidTarget(questData.Type or "Mob", questData.Target)
+                            hasAction = true
                         end
                     end
                 end
             end
         end
 
-        if not attacking and not HubConfig.AutoFarmMaxLevel and not HubConfig.AutoQuest then
-            if HubConfig.AutoDummy then attacking = executeAttackLogic(getValidTarget("Dummy", "")) end
-            if not attacking and HubConfig.AutoBoss and HubConfig.SelectedBoss ~= "Nenhum" then 
+        if not hasAction and not HubConfig.AutoFarmMaxLevel and not HubConfig.AutoQuest then
+            if HubConfig.AutoDummy then 
+                getgenv().FarmTarget = getValidTarget("Dummy", "")
+                hasAction = true 
+            end
+            
+            if not hasAction and HubConfig.AutoBoss and HubConfig.SelectedBoss ~= "Nenhum" then 
                 local targetIsland = getIslandByTarget("Boss", HubConfig.SelectedBoss)
                 if myIsland and targetIsland and targetIsland ~= "Eventos (Timed Bosses)" and myIsland ~= targetIsland then
-                    SmartIslandTeleport(targetIsland); attacking = true
+                    SmartIslandTeleport(targetIsland); hasAction = true
                 else
-                    attacking = executeAttackLogic(getValidTarget("Boss", HubConfig.SelectedBoss)) 
+                    getgenv().FarmTarget = getValidTarget("Boss", HubConfig.SelectedBoss)
+                    hasAction = true
                 end
             end
-            if not attacking and HubConfig.AutoFarm and HubConfig.SelectedMob ~= "Nenhum" then 
+            
+            if not hasAction and HubConfig.AutoFarm and HubConfig.SelectedMob ~= "Nenhum" then 
                 local targetIsland = getIslandByTarget("Mob", HubConfig.SelectedMob)
                 if myIsland and targetIsland and myIsland ~= targetIsland then
-                    SmartIslandTeleport(targetIsland); attacking = true
+                    SmartIslandTeleport(targetIsland); hasAction = true
                 else
-                    attacking = executeAttackLogic(getValidTarget("Mob", HubConfig.SelectedMob)) 
+                    getgenv().FarmTarget = getValidTarget("Mob", HubConfig.SelectedMob)
+                    hasAction = true
                 end
             end
         end
-        if not attacking then 
+
+        if not hasAction then 
             getgenv().FarmTarget = nil
+            getgenv().InteractionTarget = nil
+        end
+    end
+end)
+
+task.spawn(function()
+    while getgenv().isRunning and task.wait(0.05) do
+        local attacking = false
+
+        if getgenv().InteractionTarget then
+            local npc = getgenv().InteractionTarget
+            if npc and npc:FindFirstChild("HumanoidRootPart") then
+                local tween = SafeTeleport(npc, 1.5)
+                if tween then
+                    tween.Completed:Wait()
+                    task.wait(0.4)
+                    local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
+                    if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+                    task.wait(1) 
+                    getgenv().InteractionTarget = nil
+                end
+            end
+            attacking = true
+
+        elseif getgenv().FarmTarget then
+            attacking = executeAttackLogic(getgenv().FarmTarget)
+        end
+
+        if not attacking then 
             pcall(function() unfreezeCharacter(LP.Character) end) 
         end
     end
 end)
 
--- Spam de Combate
 task.spawn(function()
     while getgenv().isRunning and task.wait(0.1) do
         local ft = getgenv().FarmTarget
@@ -124,7 +153,6 @@ task.spawn(function()
     end
 end)
 
--- Coleta Mapa Tradicional
 task.spawn(function()
     while getgenv().isRunning and task.wait(1) do
         pcall(function()
@@ -154,7 +182,6 @@ task.spawn(function()
     end
 end)
 
--- Group Reward
 task.spawn(function()
     while getgenv().isRunning and task.wait(5) do
         if HubConfig.AutoGroupReward then
@@ -173,7 +200,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Stats
 task.spawn(function()
     while getgenv().isRunning and task.wait(0.5) do
         if HubConfig.AutoStats then
@@ -197,7 +223,6 @@ task.spawn(function()
     end
 end)
 
--- Auto Reroll & Baús Inventário
 task.spawn(function()
     while getgenv().isRunning and task.wait(1.5) do
         pcall(function()
@@ -221,7 +246,6 @@ task.spawn(function()
     end
 end)
 
--- Super Velocidade e Hacks Nativos
 table.insert(scriptConnections, RunService.Heartbeat:Connect(function()
     if HubConfig.SuperSpeed then
         local char = LP.Character

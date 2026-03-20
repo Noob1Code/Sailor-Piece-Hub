@@ -69,7 +69,7 @@ UI.Init = function()
         end)
         if ScreenGui then ScreenGui:Destroy() end
     end
-    getgenv().ComunidadeHub_Cleanup = doCleanup 
+    _G.ComunidadeHub_Cleanup = doCleanup 
 
     local CloseBtn = Instance.new("TextButton"); CloseBtn.Size = UDim2.new(0, 30, 0, 30); CloseBtn.Position = UDim2.new(1, -35, 0.5, -15); CloseBtn.BackgroundTransparency = 1; CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80); CloseBtn.Text = "X"; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.Parent = TitleBar
     CloseBtn.MouseButton1Click:Connect(doCleanup)

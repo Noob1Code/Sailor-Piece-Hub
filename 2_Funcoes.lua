@@ -1,235 +1,428 @@
--- IMPORTAÇÕES GLOBAIS (REMOTES REMOVIDOS DAQUI PARA EVITAR CACHE VAZIO)
+-- IMPORTAÇÕES GLOBAIS
 local LP = getgenv().LP
+local TweenService = getgenv().TweenService
 local Workspace = getgenv().Workspace
-local RunService = getgenv().RunService
-local UserInputService = getgenv().UserInputService
 local HubConfig = getgenv().HubConfig
-local QuestProgression = getgenv().QuestProgression
-local scriptConnections = getgenv().scriptConnections
+local IslandDataMap = getgenv().IslandDataMap
+local QuestDataMap = getgenv().QuestDataMap
+local TeleportMap = getgenv().TeleportMap
+local TeleportRemote = getgenv().TeleportRemote
 
-local getCurrentIsland = getgenv().getCurrentIsland
-local getQuestDataByName = getgenv().getQuestDataByName
-local getIslandByTarget = getgenv().getIslandByTarget
-local isQuestActive = getgenv().isQuestActive
-local SmartIslandTeleport = getgenv().SmartIslandTeleport
-local SafeTeleport = getgenv().SafeTeleport
-local getValidTarget = getgenv().getValidTarget
-local executeAttackLogic = getgenv().executeAttackLogic
-local unfreezeCharacter = getgenv().unfreezeCharacter
-local isSafePrompt = getgenv().isSafePrompt
-local TeleportAndCollectFruit = getgenv().TeleportAndCollectFruit
+getgenv().isSafePrompt = function(prompt)
+    if not prompt then return false end
+    local text = string.lower(prompt.ActionText)
+    if text:find("spin") or text:find("buy") or text:find("cost") or text:find("gems") or text:find("coins") or text:find("purchase") then return false end
+    return true
+end
 
--- Monitor de Frutas (Sniper)
-table.insert(scriptConnections, Workspace.DescendantAdded:Connect(TeleportAndCollectFruit))
+getgenv().freezeCharacter = function(char)
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    local hum = char:FindFirstChild("Humanoid")
+    if hrp and hum then hrp.Velocity = Vector3.zero; hum.PlatformStand = true end
+end
 
--- Movimentação e Motor de Quest
-task.spawn(function()
-    while getgenv().isRunning and task.wait(0.05) do
-        local attacking = false
-        local myIsland = getCurrentIsland()
-        
-        if HubConfig.AutoFarmMaxLevel then
-            local data = LP:FindFirstChild("Data")
-            local currentLevel = data and data:FindFirstChild("Level") and data.Level.Value or 1
-            local bestIsland = "Starter"; local bestQuest = "Quest 1: Mobs (Thief)"
-            
-            for _, q in ipairs(QuestProgression) do
-                if currentLevel >= q.MinLevel then bestIsland = q.Island; bestQuest = q.Quest else break end
-            end
-            HubConfig.SelectedQuestIsland = bestIsland
-            HubConfig.SelectedQuest = bestQuest
-        end
+getgenv().unfreezeCharacter = function(char)
+    local hum = char and char:FindFirstChild("Humanoid")
+    if hum then hum.PlatformStand = false end
+end
 
-        if HubConfig.AutoFarmMaxLevel or HubConfig.AutoQuest then
-            if HubConfig.SelectedQuest then
-                local questData = getQuestDataByName(HubConfig.SelectedQuestIsland, HubConfig.SelectedQuest)
-                if questData then
-                    local npcIsland = HubConfig.SelectedQuestIsland
-                    local mobIsland = getIslandByTarget(questData.Type or "Mob", questData.Target) or npcIsland
-                    
-                    if not isQuestActive(questData) then
-                        if myIsland and myIsland ~= npcIsland and npcIsland ~= "Eventos (Timed Bosses)" then
-                            SmartIslandTeleport(npcIsland)
-                            attacking = true 
-                        else
-                            getgenv().CurrentTarget = nil 
-                            local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(questData.NPC)
-                            if npc and npc:FindFirstChild("HumanoidRootPart") then
-                                local tween = SafeTeleport(npc, 1.5)
-                                if tween then
-                                    tween.Completed:Wait()
-                                    task.wait(0.4)
-                                    local prompt = npc:FindFirstChildWhichIsA("ProximityPrompt", true)
-                                    if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-                                    task.wait(1) 
-                                end
-                            end
-                            attacking = true 
-                        end
-                    else
-                        if myIsland and myIsland ~= mobIsland and mobIsland ~= "Eventos (Timed Bosses)" then
-                            SmartIslandTeleport(mobIsland)
-                            attacking = true
-                        else
-                            attacking = executeAttackLogic(getValidTarget(questData.Type or "Mob", questData.Target))
-                        end
-                    end
-                end
-            end
-        end
+getgenv().SafeTeleport = function(target, heightOffset)
+    local char = LP.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return end
+    local hrp = char.HumanoidRootPart
+    local targetPos
+    if typeof(target) == "Vector3" then targetPos = target
+    elseif typeof(target) == "Instance" then
+        if target:IsA("Model") then targetPos = target.PrimaryPart and target.PrimaryPart.Position or (target:FindFirstChildWhichIsA("BasePart") and target:FindFirstChildWhichIsA("BasePart").Position)
+        elseif target:IsA("BasePart") then targetPos = target.Position end
+    end
 
-        if not attacking and not HubConfig.AutoFarmMaxLevel and not HubConfig.AutoQuest then
-            if HubConfig.AutoDummy then attacking = executeAttackLogic(getValidTarget("Dummy", "")) end
-            if not attacking and HubConfig.AutoBoss and HubConfig.SelectedBoss ~= "Nenhum" then 
-                local targetIsland = getIslandByTarget("Boss", HubConfig.SelectedBoss)
-                if myIsland and targetIsland and targetIsland ~= "Eventos (Timed Bosses)" and myIsland ~= targetIsland then
-                    SmartIslandTeleport(targetIsland); attacking = true
-                else
-                    attacking = executeAttackLogic(getValidTarget("Boss", HubConfig.SelectedBoss)) 
-                end
-            end
-            if not attacking and HubConfig.AutoFarm and HubConfig.SelectedMob ~= "Nenhum" then 
-                local targetIsland = getIslandByTarget("Mob", HubConfig.SelectedMob)
-                if myIsland and targetIsland and myIsland ~= targetIsland then
-                    SmartIslandTeleport(targetIsland); attacking = true
-                else
-                    attacking = executeAttackLogic(getValidTarget("Mob", HubConfig.SelectedMob)) 
-                end
-            end
-        end
-        if not attacking then 
-            getgenv().FarmTarget = nil
-            pcall(function() unfreezeCharacter(LP.Character) end) 
+    if targetPos then
+        local distance = (hrp.Position - targetPos).Magnitude
+        local tempo = distance / HubConfig.TweenSpeed
+        if tempo < 0.1 then tempo = 0.1 end 
+        local tween = TweenService:Create(hrp, TweenInfo.new(tempo, Enum.EasingStyle.Linear), {CFrame = CFrame.new(targetPos + Vector3.new(0, heightOffset or 0, 0))})
+        tween:Play()
+        return tween
+    end
+    return nil
+end
+
+getgenv().getIslandByTarget = function(typeStr, name)
+    for island, data in pairs(IslandDataMap) do
+        if typeStr == "Mob" then
+            for _, mob in ipairs(data.Mobs) do if string.find(name, mob) or mob == name then return island end end
+        elseif typeStr == "Boss" then
+            for _, boss in ipairs(data.Bosses) do if boss == name then return island end end
         end
     end
-end)
+    return nil
+end
 
--- 🔥 SPAM DE COMBATE (CORRIGIDO: CHECAGEM DINÂMICA DE REMOTES) 🔥
-task.spawn(function()
-    while getgenv().isRunning and task.wait(0.1) do
-        local ft = getgenv().FarmTarget
-        if ft and ft:FindFirstChild("Humanoid") and ft.Humanoid.Health > 0 then
-            pcall(function()
-                -- Lê a variável global EXATAMENTE no momento do ataque, impossibilitando erros de cache!
-                if getgenv().CombatRemote then getgenv().CombatRemote:FireServer() end
-                if getgenv().AbilityRemote then 
-                    for i = 1, 4 do getgenv().AbilityRemote:FireServer(i) end 
+getgenv().getCurrentIsland = function()
+    local char = LP.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = char.HumanoidRootPart.Position
+    local closestIsland = nil
+    local minDist = math.huge
+    
+    local npcsFolder = Workspace:FindFirstChild("NPCs")
+    if npcsFolder then
+        for _, npc in pairs(npcsFolder:GetChildren()) do
+            local hrp = npc:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local dist = (myPos - hrp.Position).Magnitude
+                if dist < minDist then
+                    local isBoss = npc.Name:lower():find("boss") or npc:GetAttribute("Boss")
+                    local baseName = npc.Name:gsub("%d+", "")
+                    local island = getgenv().getIslandByTarget(isBoss and "Boss" or "Mob", baseName)
+                    if island and island ~= "Eventos (Timed Bosses)" then minDist = dist; closestIsland = island end
                 end
-            end)
+            end
         end
     end
-end)
-
--- Coleta Mapa Tradicional
-task.spawn(function()
-    while getgenv().isRunning and task.wait(1) do
-        pcall(function()
-            if not (HubConfig.AutoCollect.Fruits or HubConfig.AutoCollect.Hogyoku or HubConfig.AutoCollect.Puzzles or HubConfig.AutoCollect.Chests) then return end
-            for _, obj in pairs(Workspace:GetDescendants()) do
-                local name = string.lower(obj.Name)
-                local isFruit = HubConfig.AutoCollect.Fruits and (name:find("fruit") or name:find("fruta")) and not name:find("dealer") and not name:find("npc")
-                local isHogyoku = HubConfig.AutoCollect.Hogyoku and name:find("hogyoku")
-                local isPuzzle = HubConfig.AutoCollect.Puzzles and (name:find("puzzlepiece") or name:find("puzzle"))
-                local isChest = HubConfig.AutoCollect.Chests and (name:find("box") or name:find("chest"))
-                
-                if isFruit or isHogyoku or isPuzzle or isChest then
-                    local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) or (obj.Parent and obj.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
-                    local clicker = obj:FindFirstChildWhichIsA("ClickDetector", true)
-                    if prompt or clicker then
-                        if prompt and not isSafePrompt(prompt) then continue end
-                        local tween = SafeTeleport(obj, 1.5)
-                        if tween then
-                            tween.Completed:Wait(); task.wait(0.3)
-                            if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-                            if clicker and fireclickdetector then fireclickdetector(clicker) end
+    
+    local serviceFolder = Workspace:FindFirstChild("ServiceNPCs")
+    if serviceFolder then
+        for _, npc in pairs(serviceFolder:GetChildren()) do
+            local hrp = npc:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local dist = (myPos - hrp.Position).Magnitude
+                if dist < minDist then
+                    for island, quests in pairs(QuestDataMap) do
+                        for _, q in ipairs(quests) do
+                            if q.NPC == npc.Name then minDist = dist; closestIsland = island end
                         end
                     end
                 end
             end
-        end)
-    end
-end)
-
--- Group Reward
-task.spawn(function()
-    while getgenv().isRunning and task.wait(5) do
-        if HubConfig.AutoGroupReward then
-            pcall(function()
-                local serviceFolder = Workspace:FindFirstChild("ServiceNPCs")
-                local groupNpc = serviceFolder and serviceFolder:FindFirstChild("GroupRewardNPC")
-                if groupNpc then
-                    local prompt = groupNpc:FindFirstChildWhichIsA("ProximityPrompt", true)
-                    if prompt and fireproximityprompt then
-                        local tween = SafeTeleport(groupNpc, 3)
-                        if tween then tween.Completed:Wait() task.wait(0.5) fireproximityprompt(prompt) end
-                    end
-                end
-            end)
         end
     end
-end)
+    return closestIsland
+end
 
--- Auto Stats (CORRIGIDO)
-task.spawn(function()
-    while getgenv().isRunning and task.wait(0.5) do
-        if HubConfig.AutoStats then
-            pcall(function()
-                local data = LP:FindFirstChild("Data")
-                if data and data:FindFirstChild("StatPoints") and data.StatPoints.Value > 0 and getgenv().AllocateStatRemote then
-                    local availablePts = data.StatPoints.Value
-                    local selectedCount = #HubConfig.SelectedStats
-                    if selectedCount > 0 then
-                        local basePoints = math.floor(availablePts / selectedCount)
-                        local remainder = availablePts % selectedCount
-                        for i, stat in ipairs(HubConfig.SelectedStats) do
-                            local pointsToAllocate = basePoints
-                            if i <= remainder then pointsToAllocate = pointsToAllocate + 1 end
-                            if pointsToAllocate > 0 then getgenv().AllocateStatRemote:FireServer(stat, pointsToAllocate) end
-                        end
-                    end
-                end
-            end)
-        end
-    end
-end)
-
--- Auto Reroll & Baús Inventário (CORRIGIDO)
-task.spawn(function()
-    while getgenv().isRunning and task.wait(1.5) do
-        pcall(function()
-            if getgenv().UseItemRemote then
-                if HubConfig.AutoReroll.Race then
-                    local currentRace = LP:GetAttribute("CurrentRace")
-                    if currentRace and currentRace ~= HubConfig.AutoReroll.TargetRace then getgenv().UseItemRemote:FireServer("Use", "Race Reroll", 1, false) else HubConfig.AutoReroll.Race = false end
-                end
-                if HubConfig.AutoReroll.Clan then
-                    local currentClan = LP:GetAttribute("CurrentClan")
-                    if currentClan and currentClan ~= HubConfig.AutoReroll.TargetClan then getgenv().UseItemRemote:FireServer("Use", "Clan Reroll", 1, false) else HubConfig.AutoReroll.Clan = false end
-                end
-                if HubConfig.AutoOpenChests.Common then getgenv().UseItemRemote:FireServer("Use", "Common Chest", 1, false) task.wait(0.2) end
-                if HubConfig.AutoOpenChests.Rare then getgenv().UseItemRemote:FireServer("Use", "Rare Chest", 1, false) task.wait(0.2) end
-                if HubConfig.AutoOpenChests.Epic then getgenv().UseItemRemote:FireServer("Use", "Epic Chest", 1, false) task.wait(0.2) end
-                if HubConfig.AutoOpenChests.Mythical then getgenv().UseItemRemote:FireServer("Use", "Mythical Chest", 1, false) task.wait(0.2) end
-            end
-            if HubConfig.AutoTrait and getgenv().TraitRerollRemote then getgenv().TraitRerollRemote:FireServer() end
-            if HubConfig.AutoStatReroll and getgenv().RerollSingleStatRemote then getgenv().RerollSingleStatRemote:InvokeServer(HubConfig.SelectedStatToReroll) end
-        end)
-    end
-end)
-
--- Super Velocidade e Hacks Nativos
-table.insert(scriptConnections, RunService.Heartbeat:Connect(function()
-    if HubConfig.SuperSpeed then
+-- 🌟 NOVA FUNÇÃO: AUTO SAVE SPAWN FÍSICO (100% SEGURO) 🌟
+getgenv().AutoSaveSpawn = function()
+    pcall(function()
         local char = LP.Character
-        local hum = char and char:FindFirstChild("Humanoid")
-        if hum and hum.MoveDirection.Magnitude > 0 then char:TranslateBy(hum.MoveDirection * HubConfig.SpeedMultiplier) end
-    end
-    if HubConfig.HacksNativos.PuloExtra then pcall(function() LP:SetAttribute("RaceExtraJumps", 5) end) end
-end))
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
+        local hrp = char.HumanoidRootPart
+        local myPos = hrp.Position
 
-table.insert(scriptConnections, UserInputService.JumpRequest:Connect(function()
-    if HubConfig.InfJump then
-        local hum = LP.Character and LP.Character:FindFirstChild("Humanoid")
-        if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+        local closestPrompt = nil
+        local targetPart = nil
+        local minDist = math.huge
+
+        -- Varre o mapa procurando o botão de Checkpoint MAIS PRÓXIMO
+        for _, obj in pairs(Workspace:GetDescendants()) do
+            if obj:IsA("ProximityPrompt") then
+                local actionText = string.lower(obj.ActionText)
+                local promptName = obj.Name
+                
+                if promptName == "CheckpointPrompt" or actionText == "set spawn" then
+                    local part = obj.Parent
+                    if part and part:IsA("BasePart") then
+                        local dist = (part.Position - myPos).Magnitude
+                        -- Limita a 800 studs: Garante que só vai pegar o spawn da ilha que você realmente está
+                        if dist < minDist and dist < 800 then
+                            minDist = dist
+                            closestPrompt = obj
+                            targetPart = part
+                        end
+                    end
+                end
+            end
+        end
+
+        if closestPrompt and targetPart then
+            -- 1. Usa o deslizar suave até o ponto de Spawn (Garante que o servidor perceba a posição)
+            local tween = getgenv().SafeTeleport(targetPart, 2)
+            if tween then 
+                tween.Completed:Wait() 
+                task.wait(0.5) -- Espera o boneco aterrissar firmemente
+            else
+                hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+                task.wait(0.5)
+            end
+            
+            -- 2. Clica no botão duas vezes para ter garantia absoluta
+            if fireproximityprompt then 
+                fireproximityprompt(closestPrompt)
+                task.wait(0.2)
+                fireproximityprompt(closestPrompt)
+            end
+            
+            -- 3. Aguarda meio segundo e encerra. O Loop principal vai assumir daqui e voar pro NPC da missão!
+            task.wait(0.5)
+            return true 
+        end
+    end)
+    return false
+end
+
+getgenv().lastTeleportTime = 0
+getgenv().SmartIslandTeleport = function(islandName)
+    if not islandName or islandName == "Eventos (Timed Bosses)" then return false end
+    if tick() - getgenv().lastTeleportTime < 3 then return false end 
+    local dest = TeleportMap[islandName] or islandName
+    
+    if TeleportRemote then
+        local char = LP.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local oldPos = hrp and hrp.Position or Vector3.zero
+
+        getgenv().unfreezeCharacter(char)
+        TeleportRemote:FireServer(dest)
+        getgenv().lastTeleportTime = tick()
+        getgenv().CurrentTarget = nil
+        getgenv().FarmTarget = nil
+
+        -- ESPERA INTELIGENTE: Monitora se o personagem realmente mudou de ilha
+        if hrp then
+            for i = 1, 15 do -- Aguarda até 7.5 segundos pelo teleporte do jogo
+                task.wait(0.5)
+                if (hrp.Position - oldPos).Magnitude > 200 then
+                    break -- Mudou drasticamente, teleporte concluído!
+                end
+            end
+        else
+            task.wait(3)
+        end
+        
+        task.wait(1.5) -- Pausa rápida para as casas e NPCs carregarem
+        getgenv().AutoSaveSpawn() -- Voa até o spawn físico e clica!
+        return true
     end
-end))
+    return false
+end
+
+getgenv().getMobList = function(filter)
+    local mobs = {"Nenhum", "Todos"}
+    local seen = {}
+    local npcsFolder = Workspace:FindFirstChild("NPCs")
+    if npcsFolder then
+        for _, npc in pairs(npcsFolder:GetChildren()) do
+            if npc:FindFirstChild("Humanoid") and not npc:GetAttribute("IsTrainingDummy") then
+                local baseName = npc.Name:gsub("%d+", "")
+                if baseName ~= "" and not seen[baseName] and not baseName:lower():find("boss") then
+                    local addToList = false
+                    if filter == "Todas" or not filter then addToList = true else
+                        local filterData = IslandDataMap[filter]
+                        if filterData and filterData.Mobs then
+                            for _, prefix in ipairs(filterData.Mobs) do if baseName:find(prefix) then addToList = true break end end
+                        end
+                    end
+                    if addToList then seen[baseName] = true; table.insert(mobs, baseName) end
+                end
+            end
+        end
+    end
+    return mobs
+end
+
+getgenv().getBossList = function(filter)
+    local bosses = {"Nenhum"}
+    if filter == "Todas" or not filter then
+        local allBosses = {"ThiefBoss", "DesertBoss", "MonkeyBoss", "SnowBoss", "PandaMiniBoss", "GojoBoss", "SukunaBoss", "YujiBoss", "JinwooBoss", "AizenBoss", "YamatoBoss", "AlucardBoss", "MadokaBoss", "Rimuru"}
+        for _, b in ipairs(allBosses) do table.insert(bosses, b) end
+    else
+        local filterData = IslandDataMap[filter]
+        if filterData and filterData.Bosses then
+            for _, b in ipairs(filterData.Bosses) do table.insert(bosses, b) end
+        end
+    end
+    return bosses
+end
+
+getgenv().getQuestsForIsland = function(island)
+    local quests = {}
+    if QuestDataMap[island] then for _, q in ipairs(QuestDataMap[island]) do table.insert(quests, q.Name) end end
+    if #quests == 0 then table.insert(quests, "Nenhuma Quest") end
+    return quests
+end
+
+getgenv().getQuestDataByName = function(island, name)
+    if QuestDataMap[island] then
+        for _, q in ipairs(QuestDataMap[island]) do if q.Name == name then return q end end
+    end
+    return nil
+end
+
+getgenv().isQuestActive = function(questData)
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    for _, desc in ipairs(pg:GetDescendants()) do
+        if desc:IsA("TextLabel") and desc.Name == "QuestRequirement" then
+            if desc.Text:find("/") then
+                local obj = desc
+                local vis = true
+                while obj and obj:IsA("GuiObject") do
+                    if not obj.Visible then vis = false break end
+                    obj = obj.Parent
+                end
+                if vis then
+                    if not questData then return true end
+                    local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower()
+                    local uiText = desc.Text:lower()
+                    local titleText = ""
+                    if desc.Parent then
+                        for _, sibling in ipairs(desc.Parent:GetChildren()) do
+                            if sibling:IsA("TextLabel") and sibling.Name ~= "QuestRequirement" then titleText = titleText .. " " .. sibling.Text:lower() end
+                        end
+                    end
+                    if uiText:find(targetBase) or titleText:find(targetBase) then
+                        local curr, max = desc.Text:match("(%d+)/(%d+)")
+                        if curr and max and tonumber(curr) < tonumber(max) then return true end
+                    end
+                end
+            end
+        end
+    end
+    return false
+end
+
+getgenv().getValidTarget = function(typeStr, name)
+    if name == "Nenhum" or not name then return nil end
+    local CurrentTarget = getgenv().CurrentTarget
+    if CurrentTarget and CurrentTarget.Parent and CurrentTarget:FindFirstChild("Humanoid") and CurrentTarget.Humanoid.Health > 0 and CurrentTarget:FindFirstChild("HumanoidRootPart") then
+        local isStillValid = false
+        if typeStr == "Dummy" and (CurrentTarget.Name == "TrainingDummy" or CurrentTarget:GetAttribute("IsTrainingDummy")) then isStillValid = true
+        elseif typeStr == "Mob" then
+            local isBoss = CurrentTarget.Name:lower():find("boss") or CurrentTarget:GetAttribute("Boss")
+            if not isBoss then
+                local baseName = CurrentTarget.Name:gsub("%d+", "")
+                if name == "Todos" or baseName == name then isStillValid = true end
+            end
+        elseif typeStr == "Boss" then
+            if CurrentTarget.Name:find(name) then isStillValid = true end
+        end
+        if isStillValid then return CurrentTarget end
+    end
+
+    local closest = nil; local minDist = math.huge; local char = LP.Character
+    local myPos = char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Position or Vector3.zero
+    local npcsFolder = Workspace:FindFirstChild("NPCs")
+    
+    if typeStr == "Dummy" then
+        if not npcsFolder then return nil end
+        for _, npc in pairs(npcsFolder:GetChildren()) do if npc.Name == "TrainingDummy" or npc:GetAttribute("IsTrainingDummy") then return npc end end
+    elseif typeStr == "Mob" then
+        if not npcsFolder then return nil end
+        for _, npc in pairs(npcsFolder:GetChildren()) do
+            local hum = npc:FindFirstChild("Humanoid")
+            if hum and hum.Health > 0 and not npc:GetAttribute("IsTrainingDummy") then
+                local isBoss = npc.Name:lower():find("boss") or npc:GetAttribute("Boss")
+                if not isBoss then
+                    local baseName = npc.Name:gsub("%d+", "")
+                    if name == "Todos" or baseName == name then 
+                        local hrp = npc:FindFirstChild("HumanoidRootPart")
+                        if hrp then local dist = (myPos - hrp.Position).Magnitude; if dist < minDist then minDist = dist; closest = npc end end
+                    end
+                end
+            end
+        end
+    elseif typeStr == "Boss" then
+        for _, obj in pairs(Workspace:GetChildren()) do
+            if obj.Name:find("BossSpawn_") or obj.Name:find("TimedBoss") or obj.Name == "NPCs" then
+                for _, boss in pairs(obj:GetDescendants()) do
+                    if boss:IsA("Model") and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 then
+                        if boss.Name:find(name) and (boss:GetAttribute("Boss") or boss:GetAttribute("_IsTimedBoss") or boss.Name:lower():find("boss")) then 
+                            local hrp = boss:FindFirstChild("HumanoidRootPart")
+                            if hrp then local dist = (myPos - hrp.Position).Magnitude; if dist < minDist then minDist = dist; closest = boss end end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    getgenv().CurrentTarget = closest
+    return closest
+end
+
+getgenv().getWeaponList = function()
+    local weapons = {"Nenhuma"}; local char = LP.Character; local backpack = LP:FindFirstChild("Backpack")
+    if backpack then for _, tool in pairs(backpack:GetChildren()) do if tool:IsA("Tool") and not table.find(weapons, tool.Name) then table.insert(weapons, tool.Name) end end end
+    if char then for _, tool in pairs(char:GetChildren()) do if tool:IsA("Tool") and not table.find(weapons, tool.Name) then table.insert(weapons, tool.Name) end end end
+    return weapons
+end
+
+getgenv().equipWeapon = function()
+    local char = LP.Character; if not char then return end
+    local backpack = LP:FindFirstChild("Backpack"); if not backpack then return end
+    if HubConfig.SelectedWeapon == "Nenhuma" then
+        for _, tool in pairs(backpack:GetChildren()) do if tool:IsA("Tool") then tool.Parent = char break end end
+    else
+        local specificWeapon = backpack:FindFirstChild(HubConfig.SelectedWeapon)
+        if specificWeapon and specificWeapon:IsA("Tool") then specificWeapon.Parent = char end
+    end
+end
+
+getgenv().executeAttackLogic = function(target)
+    if not target or not target:FindFirstChild("HumanoidRootPart") or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then 
+        getgenv().FarmTarget = nil 
+        return false 
+    end
+    
+    local char = LP.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
+    local hrp = char.HumanoidRootPart; local targetHrp = target.HumanoidRootPart
+    
+    getgenv().freezeCharacter(char)
+    local forcedSafe = target:GetAttribute("Damage") and target:GetAttribute("Damage") > 100000
+    local finalPos = HubConfig.AttackPosition
+    if forcedSafe and finalPos == "Abaixo" then finalPos = "Acima" end
+    
+    local pos
+    if finalPos == "Atrás" then pos = targetHrp.Position - (targetHrp.CFrame.LookVector * HubConfig.Distance)
+    elseif finalPos == "Abaixo" then pos = targetHrp.Position + Vector3.new(0, -HubConfig.Distance, 0)
+    else pos = targetHrp.Position + Vector3.new(0, HubConfig.Distance, 0) end
+    
+    local targetCFrame = CFrame.new(pos, targetHrp.Position)
+    local distance = (hrp.Position - pos).Magnitude
+    
+    -- 🛡️ PROTEÇÃO ANTI-DISCONNECT
+    if distance > 1000 then
+        getgenv().FarmTarget = nil
+        return false 
+    elseif distance > 15 then
+        TweenService:Create(hrp, TweenInfo.new(distance / HubConfig.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
+        getgenv().FarmTarget = nil
+    else
+        hrp.CFrame = targetCFrame
+        hrp.Velocity = Vector3.zero
+        getgenv().equipWeapon()
+        getgenv().FarmTarget = target
+    end
+    return true
+end
+
+getgenv().TeleportAndCollectFruit = function(child)
+    if not HubConfig.FruitSniper then return end
+    task.spawn(function()
+        task.wait(0.1)
+        if not child or not child.Parent then return end
+        local lowerName = string.lower(child.Name)
+        if (lowerName:find("fruit") or lowerName:find("fruta")) and not lowerName:find("dealer") and not lowerName:find("npc") and not child:FindFirstChild("Humanoid") then
+            local prompt = child:FindFirstChildWhichIsA("ProximityPrompt", true) or (child.Parent and child.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+            local clicker = child:FindFirstChildWhichIsA("ClickDetector", true)
+            if prompt or clicker then
+                if prompt and not getgenv().isSafePrompt(prompt) then return end
+                local pos = nil
+                if child:IsA("BasePart") then pos = child.Position
+                elseif child:IsA("Model") then
+                    pos = child.PrimaryPart and child.PrimaryPart.Position
+                    if not pos then local part = child:FindFirstChildWhichIsA("BasePart", true); if part then pos = part.Position end end
+                end
+                if pos then
+                    local char = LP.Character
+                    if char and char:FindFirstChild("HumanoidRootPart") then
+                        char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
+                        task.wait(0.5)
+                        if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+                        if clicker and fireclickdetector then fireclickdetector(clicker) end
+                    end
+                end
+            end
+        end
+    end)
+end

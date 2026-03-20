@@ -1,3 +1,4 @@
+-- IMPORTAÇÕES GLOBAIS
 local LP = getgenv().LP
 local Workspace = getgenv().Workspace
 local RunService = getgenv().RunService
@@ -25,10 +26,14 @@ local unfreezeCharacter = getgenv().unfreezeCharacter
 local isSafePrompt = getgenv().isSafePrompt
 local TeleportAndCollectFruit = getgenv().TeleportAndCollectFruit
 
+-- Monitor de Frutas (Sniper)
 table.insert(scriptConnections, Workspace.DescendantAdded:Connect(TeleportAndCollectFruit))
 
 getgenv().CurrentIslandCache = "Starter"
 
+-- =========================================================================
+-- 🧠 TICKER LENTO: CÉREBRO (DECISÕES PESADAS - Roda a cada 1 segundo)
+-- =========================================================================
 task.spawn(function()
     while getgenv().isRunning and task.wait(1) do
         getgenv().CurrentIslandCache = getCurrentIsland()
@@ -112,6 +117,9 @@ task.spawn(function()
     end
 end)
 
+-- =========================================================================
+-- ⚡ TICKER RÁPIDO: MÚSCULOS (APENAS AÇÃO E VOO - Roda a cada 0.05 seg)
+-- =========================================================================
 task.spawn(function()
     while getgenv().isRunning and task.wait(0.05) do
         local attacking = false
@@ -141,6 +149,7 @@ task.spawn(function()
     end
 end)
 
+-- SPAM DE COMBATE
 task.spawn(function()
     while getgenv().isRunning and task.wait(0.1) do
         local ft = getgenv().FarmTarget
@@ -153,6 +162,7 @@ task.spawn(function()
     end
 end)
 
+-- COLETA MAPA TRADICIONAL
 task.spawn(function()
     while getgenv().isRunning and task.wait(1) do
         pcall(function()
@@ -182,6 +192,7 @@ task.spawn(function()
     end
 end)
 
+-- GROUP REWARD
 task.spawn(function()
     while getgenv().isRunning and task.wait(5) do
         if HubConfig.AutoGroupReward then
@@ -200,6 +211,7 @@ task.spawn(function()
     end
 end)
 
+-- AUTO STATS
 task.spawn(function()
     while getgenv().isRunning and task.wait(0.5) do
         if HubConfig.AutoStats then
@@ -223,6 +235,7 @@ task.spawn(function()
     end
 end)
 
+-- 📦 AUTO REROLL & BAÚS INVENTÁRIO (ATUALIZADO)
 task.spawn(function()
     while getgenv().isRunning and task.wait(1.5) do
         pcall(function()
@@ -235,10 +248,15 @@ task.spawn(function()
                     local currentClan = LP:GetAttribute("CurrentClan")
                     if currentClan and currentClan ~= HubConfig.AutoReroll.TargetClan then UseItemRemote:FireServer("Use", "Clan Reroll", 1, false) else HubConfig.AutoReroll.Clan = false end
                 end
-                if HubConfig.AutoOpenChests.Common then UseItemRemote:FireServer("Use", "Common Chest", 1, false) task.wait(0.2) end
-                if HubConfig.AutoOpenChests.Rare then UseItemRemote:FireServer("Use", "Rare Chest", 1, false) task.wait(0.2) end
-                if HubConfig.AutoOpenChests.Epic then UseItemRemote:FireServer("Use", "Epic Chest", 1, false) task.wait(0.2) end
-                if HubConfig.AutoOpenChests.Mythical then UseItemRemote:FireServer("Use", "Mythical Chest", 1, false) task.wait(0.2) end
+                
+                -- Usa a variável configurada na interface (Padrão: 1)
+                local amount = HubConfig.ChestOpenAmount or 1
+                
+                if HubConfig.AutoOpenChests.Common then UseItemRemote:FireServer("Use", "Common Chest", amount, false) task.wait(0.2) end
+                if HubConfig.AutoOpenChests.Rare then UseItemRemote:FireServer("Use", "Rare Chest", amount, false) task.wait(0.2) end
+                if HubConfig.AutoOpenChests.Epic then UseItemRemote:FireServer("Use", "Epic Chest", amount, false) task.wait(0.2) end
+                if HubConfig.AutoOpenChests.Legendary then UseItemRemote:FireServer("Use", "Legendary Chest", amount, false) task.wait(0.2) end
+                if HubConfig.AutoOpenChests.Mythical then UseItemRemote:FireServer("Use", "Mythical Chest", amount, false) task.wait(0.2) end
             end
             if HubConfig.AutoTrait and TraitRerollRemote then TraitRerollRemote:FireServer() end
             if HubConfig.AutoStatReroll and RerollSingleStatRemote then RerollSingleStatRemote:InvokeServer(HubConfig.SelectedStatToReroll) end
@@ -246,6 +264,7 @@ task.spawn(function()
     end
 end)
 
+-- SUPER VELOCIDADE E HACKS NATIVOS
 table.insert(scriptConnections, RunService.Heartbeat:Connect(function()
     if HubConfig.SuperSpeed then
         local char = LP.Character

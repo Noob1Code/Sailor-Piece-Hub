@@ -9,6 +9,7 @@ getgenv().RunService = game:GetService("RunService")
 getgenv().LP = Players.LocalPlayer
 
 -- REMOTES
+-- REMOTES
 getgenv().CombatRemote = nil
 getgenv().AbilityRemote = nil
 getgenv().TeleportRemote = nil
@@ -21,16 +22,16 @@ getgenv().TraitRerollRemote = nil
 getgenv().RerollSingleStatRemote = nil
 
 pcall(function()
-    CombatRemote = RS:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
-    AbilityRemote = RS:WaitForChild("AbilitySystem"):WaitForChild("Remotes"):WaitForChild("RequestAbility")
-    TeleportRemote = RS:FindFirstChild("TeleportToPortal", true)
-    AllocateStatRemote = RS:FindFirstChild("AllocateStat", true)
-    ResetStatsRemote = RS:FindFirstChild("ResetStats", true)
-    UseItemRemote = RS:FindFirstChild("UseItem", true)
-    TitleEquipRemote = RS:FindFirstChild("TitleEquip", true)
-    DisplayTitleEquipRemote = RS:FindFirstChild("DisplayTitleEquip", true)
-    TraitRerollRemote = RS:FindFirstChild("TraitReroll", true)
-    RerollSingleStatRemote = RS:FindFirstChild("RerollSingleStat", true)
+    getgenv().CombatRemote = RS:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
+    getgenv().AbilityRemote = RS:WaitForChild("AbilitySystem"):WaitForChild("Remotes"):WaitForChild("RequestAbility")
+    getgenv().TeleportRemote = RS:FindFirstChild("TeleportToPortal", true)
+    getgenv().AllocateStatRemote = RS:FindFirstChild("AllocateStat", true)
+    getgenv().ResetStatsRemote = RS:FindFirstChild("ResetStats", true)
+    getgenv().UseItemRemote = RS:FindFirstChild("UseItem", true)
+    getgenv().TitleEquipRemote = RS:FindFirstChild("TitleEquip", true)
+    getgenv().DisplayTitleEquipRemote = RS:FindFirstChild("DisplayTitleEquip", true)
+    getgenv().TraitRerollRemote = RS:FindFirstChild("TraitReroll", true)
+    getgenv().RerollSingleStatRemote = RS:FindFirstChild("RerollSingleStat", true)
 end)
 
 -- DICIONÁRIO DE TELEPORTE

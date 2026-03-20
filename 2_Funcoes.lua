@@ -1,4 +1,3 @@
--- IMPORTAÇÕES GLOBAIS
 local LP = getgenv().LP
 local TweenService = getgenv().TweenService
 local Workspace = getgenv().Workspace
@@ -101,7 +100,6 @@ getgenv().getCurrentIsland = function()
     return closestIsland
 end
 
--- 🌟 NOVA FUNÇÃO: AUTO SAVE SPAWN FÍSICO (100% SEGURO) 🌟
 getgenv().AutoSaveSpawn = function()
     pcall(function()
         local char = LP.Character
@@ -113,7 +111,6 @@ getgenv().AutoSaveSpawn = function()
         local targetPart = nil
         local minDist = math.huge
 
-        -- Varre o mapa procurando o botão de Checkpoint MAIS PRÓXIMO
         for _, obj in pairs(Workspace:GetDescendants()) do
             if obj:IsA("ProximityPrompt") then
                 local actionText = string.lower(obj.ActionText)
@@ -123,7 +120,6 @@ getgenv().AutoSaveSpawn = function()
                     local part = obj.Parent
                     if part and part:IsA("BasePart") then
                         local dist = (part.Position - myPos).Magnitude
-                        -- Limita a 800 studs: Garante que só vai pegar o spawn da ilha que você realmente está
                         if dist < minDist and dist < 800 then
                             minDist = dist
                             closestPrompt = obj
@@ -135,24 +131,21 @@ getgenv().AutoSaveSpawn = function()
         end
 
         if closestPrompt and targetPart then
-            -- 1. Usa o deslizar suave até o ponto de Spawn (Garante que o servidor perceba a posição)
             local tween = getgenv().SafeTeleport(targetPart, 2)
             if tween then 
                 tween.Completed:Wait() 
-                task.wait(0.5) -- Espera o boneco aterrissar firmemente
+                task.wait(0.5) 
             else
                 hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
                 task.wait(0.5)
             end
             
-            -- 2. Clica no botão duas vezes para ter garantia absoluta
             if fireproximityprompt then 
                 fireproximityprompt(closestPrompt)
                 task.wait(0.2)
                 fireproximityprompt(closestPrompt)
             end
             
-            -- 3. Aguarda meio segundo e encerra. O Loop principal vai assumir daqui e voar pro NPC da missão!
             task.wait(0.5)
             return true 
         end
@@ -177,20 +170,17 @@ getgenv().SmartIslandTeleport = function(islandName)
         getgenv().CurrentTarget = nil
         getgenv().FarmTarget = nil
 
-        -- ESPERA INTELIGENTE: Monitora se o personagem realmente mudou de ilha
         if hrp then
-            for i = 1, 15 do -- Aguarda até 7.5 segundos pelo teleporte do jogo
+            for i = 1, 15 do 
                 task.wait(0.5)
-                if (hrp.Position - oldPos).Magnitude > 200 then
-                    break -- Mudou drasticamente, teleporte concluído!
-                end
+                if (hrp.Position - oldPos).Magnitude > 200 then break end
             end
         else
             task.wait(3)
         end
         
-        task.wait(1.5) -- Pausa rápida para as casas e NPCs carregarem
-        getgenv().AutoSaveSpawn() -- Voa até o spawn físico e clica!
+        task.wait(1.5) 
+        getgenv().AutoSaveSpawn() 
         return true
     end
     return false
@@ -248,49 +238,58 @@ getgenv().getQuestDataByName = function(island, name)
     return nil
 end
 
+getgenv().QuestGuiCache = nil 
 getgenv().isQuestActive = function(questData)
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
-    for _, desc in ipairs(pg:GetDescendants()) do
-        if desc:IsA("TextLabel") and desc.Name == "QuestRequirement" then
-            if desc.Text:find("/") then
-                local obj = desc
-                local vis = true
-                while obj and obj:IsA("GuiObject") do
-                    if not obj.Visible then vis = false break end
-                    obj = obj.Parent
+
+    local desc = getgenv().QuestGuiCache
+    if not desc or not desc.Parent or not desc.Visible then
+        getgenv().QuestGuiCache = nil
+        
+        for _, obj in ipairs(pg:GetDescendants()) do
+            if obj:IsA("TextLabel") and obj.Name == "QuestRequirement" and obj.Text:find("/") then
+                local isVis = true
+                local temp = obj
+                while temp and temp:IsA("GuiObject") do
+                    if not temp.Visible then isVis = false break end
+                    temp = temp.Parent
                 end
-                if vis then
-                    if not questData then return true end
-                    
-                    local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
-                    local uiText = desc.Text:lower():gsub("%s+", "")
-                    local titleText = ""
-                    
-                    if desc.Parent then
-                        for _, sibling in ipairs(desc.Parent:GetChildren()) do
-                            if sibling:IsA("TextLabel") and sibling.Name ~= "QuestRequirement" then 
-                                titleText = titleText .. sibling.Text:lower():gsub("%s+", "") 
-                            end
-                        end
-                    end
-                    
-                    local isMatch = false
-                    if uiText:find(targetBase) or titleText:find(targetBase) then
-                        isMatch = true
-                        if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then
-                            isMatch = false
-                        end
-                    end
-                    
-                    if isMatch then
-                        local curr, max = desc.Text:match("(%d+)/(%d+)")
-                        if curr and max and tonumber(curr) < tonumber(max) then return true end
-                    end
+                if isVis then
+                    getgenv().QuestGuiCache = obj
+                    desc = obj
+                    break
                 end
             end
         end
     end
+
+    if not desc then return false end
+    if not questData then return true end
+
+    local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
+    local uiText = desc.Text:lower():gsub("%s+", "")
+    local titleText = ""
+    
+    if desc.Parent then
+        for _, sibling in ipairs(desc.Parent:GetChildren()) do
+            if sibling:IsA("TextLabel") and sibling.Name ~= "QuestRequirement" then 
+                titleText = titleText .. sibling.Text:lower():gsub("%s+", "") 
+            end
+        end
+    end
+    
+    local isMatch = false
+    if uiText:find(targetBase) or titleText:find(targetBase) then
+        isMatch = true
+        if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then isMatch = false end
+    end
+    
+    if isMatch then
+        local curr, max = desc.Text:match("(%d+)/(%d+)")
+        if curr and max and tonumber(curr) < tonumber(max) then return true end
+    end
+    
     return false
 end
 
@@ -370,6 +369,7 @@ getgenv().equipWeapon = function()
     end
 end
 
+getgenv().OrbitAngle = 0
 getgenv().executeAttackLogic = function(target)
     if not target or not target:FindFirstChild("HumanoidRootPart") or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then 
         getgenv().FarmTarget = nil 
@@ -386,14 +386,21 @@ getgenv().executeAttackLogic = function(target)
     if forcedSafe and finalPos == "Abaixo" then finalPos = "Acima" end
     
     local pos
-    if finalPos == "Atrás" then pos = targetHrp.Position - (targetHrp.CFrame.LookVector * HubConfig.Distance)
-    elseif finalPos == "Abaixo" then pos = targetHrp.Position + Vector3.new(0, -HubConfig.Distance, 0)
-    else pos = targetHrp.Position + Vector3.new(0, HubConfig.Distance, 0) end
+    if finalPos == "Orbital" then
+        getgenv().OrbitAngle = getgenv().OrbitAngle + math.rad(15)
+        local radius = HubConfig.Distance
+        pos = targetHrp.Position + Vector3.new(math.cos(getgenv().OrbitAngle) * radius, 5, math.sin(getgenv().OrbitAngle) * radius)
+    elseif finalPos == "Atrás" then 
+        pos = targetHrp.Position - (targetHrp.CFrame.LookVector * HubConfig.Distance)
+    elseif finalPos == "Abaixo" then 
+        pos = targetHrp.Position + Vector3.new(0, -HubConfig.Distance, 0)
+    else 
+        pos = targetHrp.Position + Vector3.new(0, HubConfig.Distance, 0) 
+    end
     
     local targetCFrame = CFrame.new(pos, targetHrp.Position)
     local distance = (hrp.Position - pos).Magnitude
     
-    -- 🛡️ PROTEÇÃO ANTI-DISCONNECT
     if distance > 1000 then
         getgenv().FarmTarget = nil
         return false 

@@ -428,25 +428,25 @@ TabStats:CreateButton("🔄 Reset Status", function() if ResetStatsRemote then R
 task.spawn(function() while getgenv().isRunning and task.wait(1) do pcall(function() local data = LP:FindFirstChild("Data"); if data and data:FindFirstChild("StatPoints") then InfoPoints.Text = "Pontos Disponíveis: " .. tostring(data.StatPoints.Value) else InfoPoints.Text = "Pontos Disponíveis: 0" end end) end end)
 
 -- ABA 6: ROLETA
-local TabRoleta = UI.CreateTab("Roleta", "🎲")
-UI.CreateTextBox(TabRoleta, "Raça Sniper", HubConfig.AutoReroll.TargetRace, function(v) HubConfig.AutoReroll.TargetRace = tostring(v) end)
-UI.CreateToggle(TabRoleta, "Iniciar Sniper Raça", false, function(v) HubConfig.AutoReroll.Race = v end)
-UI.CreateLabel(TabRoleta, "--------------------------------------------------------")
-UI.CreateLabel(TabRoleta, "📦 ABERTURA DE BAÚS")
-UI.CreateTextBox(TabRoleta, "Quantidade (9999 = Máximo)", HubConfig.ChestOpenAmount or 1, function(v) HubConfig.ChestOpenAmount = tonumber(v) or 1 end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Comuns", false, function(v) HubConfig.AutoOpenChests.Common = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Raros", false, function(v) HubConfig.AutoOpenChests.Rare = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Épicos", false, function(v) HubConfig.AutoOpenChests.Epic = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Lendários", false, function(v) HubConfig.AutoOpenChests.Legendary = v end)
-UI.CreateToggle(TabRoleta, "Abrir Baús Míticos", false, function(v) HubConfig.AutoOpenChests.Mythical = v end)
+local TabRoleta = UI:CreateTab("Roleta", "🎲")
+TabRoleta:CreateTextBox("Raça Sniper", HubConfig.AutoReroll.TargetRace, function(v) HubConfig.AutoReroll.TargetRace = tostring(v) end)
+TabRoleta:CreateToggle("Iniciar Sniper Raça", HubConfig.AutoReroll.Race, function(v) HubConfig.AutoReroll.Race = v end)
+TabRoleta:CreateLabel("--------------------------------------------------------")
+TabRoleta:CreateLabel("📦 ABERTURA DE BAÚS")
+TabRoleta:CreateTextBox("Quantidade (9999 = Máximo)", HubConfig.ChestOpenAmount or 1, function(v) HubConfig.ChestOpenAmount = tonumber(v) or 1 end)
+TabRoleta:CreateToggle("Abrir Baús Comuns", HubConfig.AutoOpenChests.Common, function(v) HubConfig.AutoOpenChests.Common = v end)
+TabRoleta:CreateToggle("Abrir Baús Raros", HubConfig.AutoOpenChests.Rare, function(v) HubConfig.AutoOpenChests.Rare = v end)
+TabRoleta:CreateToggle("Abrir Baús Épicos", HubConfig.AutoOpenChests.Epic, function(v) HubConfig.AutoOpenChests.Epic = v end)
+TabRoleta:CreateToggle("Abrir Baús Lendários", HubConfig.AutoOpenChests.Legendary, function(v) HubConfig.AutoOpenChests.Legendary = v end)
+TabRoleta:CreateToggle("Abrir Baús Míticos", HubConfig.AutoOpenChests.Mythical, function(v) HubConfig.AutoOpenChests.Mythical = v end)
 
 -- ABA 7: MUNDO
-local TabWorld = UI.CreateTab("Mundo", "🌍")
+local TabWorld = UI:CreateTab("Mundo", "🌍")
 local MundoPronto = false 
-UI.CreateLabel(TabWorld, "PORTAIS INSTANTÂNEOS")
-UI.CreateDropdown(TabWorld, "Viajar para Ilha", HubConfig.Islands, "Starter", function(s) if MundoPronto and TeleportRemote then TeleportRemote:FireServer(s) end end)
-UI.CreateLabel(TabWorld, "IR ATÉ NPC (VOANDO)")
-UI.CreateDropdown(TabWorld, "Selecione o NPC", HubConfig.NPCs, "EnchantNPC", function(s) if MundoPronto then local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(s); if npc and npc:FindFirstChild("HumanoidRootPart") then unfreezeCharacter(LP.Character); SafeTeleport(npc.HumanoidRootPart.Position + Vector3.new(0, 0, 5)) end end end)
+TabWorld:CreateLabel("PORTAIS INSTANTÂNEOS")
+TabWorld:CreateDropdown("Viajar para Ilha", HubConfig.Islands, "Starter", function(s) if MundoPronto and TeleportRemote then TeleportRemote:FireServer(s) end end)
+TabWorld:CreateLabel("IR ATÉ NPC (VOANDO)")
+TabWorld:CreateDropdown("Selecione o NPC", HubConfig.NPCs, "EnchantNPC", function(s) if MundoPronto then local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(s); if npc and npc:FindFirstChild("HumanoidRootPart") then unfreezeCharacter(LP.Character); SafeTeleport(npc.HumanoidRootPart.Position + Vector3.new(0, 0, 5)) end end end)
 MundoPronto = true
 
 -- ABA 8: NATIVOS
@@ -455,9 +455,14 @@ TabNativos:CreateLabel("HACKS NATIVOS (Indetectáveis)")
 TabNativos:CreateToggle("Haki do Armamento", HubConfig.HacksNativos.HakiArmamento, function(v) HubConfig.HacksNativos.HakiArmamento = v; pcall(function() LP:SetAttribute("AutoArmHaki", v) end) end)
 TabNativos:CreateToggle("Haki da Observação", HubConfig.HacksNativos.HakiObservacao, function(v) HubConfig.HacksNativos.HakiObservacao = v; pcall(function() LP:SetAttribute("AutoObsHaki", v) end) end)
 TabNativos:CreateToggle("Hack de Pulos Extras", HubConfig.HacksNativos.PuloExtra, function(v) HubConfig.HacksNativos.PuloExtra = v; if not v then pcall(function() LP:SetAttribute("RaceExtraJumps", 0) end) end end)
+TabNativos:CreateLabel("QUALIDADE DE VIDA")
+TabNativos:CreateToggle("Remover Tremores (NoShake)", HubConfig.HacksNativos.NoShake, function(v) HubConfig.HacksNativos.NoShake = v; pcall(function() LP:SetAttribute("DisableScreenShake", v) end) end)
+TabNativos:CreateToggle("Pular Animações (NoCutscene)", HubConfig.HacksNativos.NoCutscene, function(v) HubConfig.HacksNativos.NoCutscene = v; pcall(function() LP:SetAttribute("DisableCutscene", v) end) end)
+TabNativos:CreateToggle("Modo Proteção PvP", HubConfig.HacksNativos.DisablePvP, function(v) HubConfig.HacksNativos.DisablePvP = v; pcall(function() LP:SetAttribute("DisablePvP", v) end) end)
 
 -- ABA 9: FRUIT SNIPER
 local TabSniper = UI:CreateTab("Fruit V2", "🍎")
+TabSniper:CreateLabel("FRUIT SNIPER NATIVO (REAL-TIME)")
 TabSniper:CreateToggle("Sniper de Frutas Instantâneo", HubConfig.FruitSniper, function(v) HubConfig.FruitSniper = v end)
 
 -- ABA 10: MISC

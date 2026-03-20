@@ -442,12 +442,12 @@ TabRoleta:CreateToggle("Abrir Baús Lendários", HubConfig.AutoOpenChests.Legend
 TabRoleta:CreateToggle("Abrir Baús Míticos", HubConfig.AutoOpenChests.Mythical, function(v) HubConfig.AutoOpenChests.Mythical = v end)
 
 -- ABA 7: MUNDO
-local TabWorld = UI:CreateTab("Mundo", "🌍")
+local TabWorld = UI.CreateTab("Mundo", "🌍")
 local MundoPronto = false 
-TabWorld:CreateLabel("PORTAIS INSTANTÂNEOS")
-TabWorld:CreateDropdown("Viajar para Ilha", HubConfig.Islands, "Starter", function(s) if MundoPronto and TeleportRemote then TeleportRemote:FireServer(s) end end)
-TabWorld:CreateLabel("IR ATÉ NPC (VOANDO)")
-TabWorld:CreateDropdown("Selecione o NPC", HubConfig.NPCs, "EnchantNPC", function(s) if MundoPronto then local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(s); if npc and npc:FindFirstChild("HumanoidRootPart") then unfreezeCharacter(LP.Character); SafeTeleport(npc.HumanoidRootPart.Position + Vector3.new(0, 0, 5)) end end end)
+UI.CreateLabel(TabWorld, "PORTAIS INSTANTÂNEOS")
+UI.CreateDropdown(TabWorld, "Viajar para Ilha", HubConfig.Islands, "Starter", function(s) if MundoPronto and TeleportRemote then TeleportRemote:FireServer(s) end end)
+UI.CreateLabel(TabWorld, "IR ATÉ NPC (VOANDO)")
+UI.CreateDropdown(TabWorld, "Selecione o NPC", HubConfig.NPCs, "EnchantNPC", function(s) if MundoPronto then local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(s); if npc and npc:FindFirstChild("HumanoidRootPart") then unfreezeCharacter(LP.Character); SafeTeleport(npc.HumanoidRootPart.Position + Vector3.new(0, 0, 5)) end end end)
 MundoPronto = true
 
 -- ABA 8: NATIVOS

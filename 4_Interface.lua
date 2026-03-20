@@ -1,6 +1,31 @@
-getgenv().UI = { Tabs = {}, CurrentTab = nil }
+-- IMPORTAÇÕES GLOBAIS
+local LP = getgenv().LP
+local CoreGui = getgenv().CoreGui
+local UserInputService = getgenv().UserInputService
+local Workspace = getgenv().Workspace
+local HubConfig = getgenv().HubConfig
+local TeleportRemote = getgenv().TeleportRemote
+local AllocateStatRemote = getgenv().AllocateStatRemote
+local ResetStatsRemote = getgenv().ResetStatsRemote
+local UseItemRemote = getgenv().UseItemRemote
+local TraitRerollRemote = getgenv().TraitRerollRemote
+local RerollSingleStatRemote = getgenv().RerollSingleStatRemote
+local scriptConnections = getgenv().scriptConnections
 
-getgenv().UI.Init = function()
+local getMobList = getgenv().getMobList
+local getBossList = getgenv().getBossList
+local getQuestsForIsland = getgenv().getQuestsForIsland
+local getWeaponList = getgenv().getWeaponList
+local unfreezeCharacter = getgenv().unfreezeCharacter
+local SafeTeleport = getgenv().SafeTeleport
+
+-- VARIÁVEIS LOCAIS DA UI
+local MobDropdownRef, BossDropdownRef, QuestDropdownRef, WeaponDropdownRef
+
+getgenv().UI = { Tabs = {}, CurrentTab = nil }
+local UI = getgenv().UI
+
+UI.Init = function()
     local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or LP:WaitForChild("PlayerGui")
     if uiParent:FindFirstChild("ComunidadeHubGUI") then uiParent.ComunidadeHubGUI:Destroy() end
     
@@ -34,7 +59,7 @@ getgenv().UI.Init = function()
     local ContentContainer = Instance.new("Frame"); ContentContainer.Size = UDim2.new(1, -150, 1, -40); ContentContainer.Position = UDim2.new(0, 150, 0, 40); ContentContainer.BackgroundTransparency = 1; ContentContainer.Parent = MainFrame
 
     local function doCleanup()
-        isRunning = false 
+        getgenv().isRunning = false 
         for _, conn in ipairs(scriptConnections) do if conn then conn:Disconnect() end end
         pcall(function()
             local char = LP.Character; if char then unfreezeCharacter(char) end
@@ -44,7 +69,7 @@ getgenv().UI.Init = function()
         end)
         if ScreenGui then ScreenGui:Destroy() end
     end
-    _G.ComunidadeHub_Cleanup = doCleanup 
+    getgenv().ComunidadeHub_Cleanup = doCleanup 
 
     local CloseBtn = Instance.new("TextButton"); CloseBtn.Size = UDim2.new(0, 30, 0, 30); CloseBtn.Position = UDim2.new(1, -35, 0.5, -15); CloseBtn.BackgroundTransparency = 1; CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80); CloseBtn.Text = "X"; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.Parent = TitleBar
     CloseBtn.MouseButton1Click:Connect(doCleanup)
@@ -60,7 +85,7 @@ getgenv().UI.Init = function()
     UI.TabSelectorContainer = TabSelectorContainer; UI.ContentContainer = ContentContainer
 end
 
-getgenv().UI.CreateTab = function(name, icon)
+UI.CreateTab = function(name, icon)
     local TabBtn = Instance.new("TextButton"); TabBtn.Size = UDim2.new(1, 0, 0, 35); TabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25); TabBtn.BorderSizePixel = 0; TabBtn.TextColor3 = Color3.fromRGB(180, 180, 180); TabBtn.Text = "  " .. (icon or "") .. " " .. name; TabBtn.Font = Enum.Font.GothamSemibold; TabBtn.TextSize = 13; TabBtn.TextXAlignment = Enum.TextXAlignment.Left; TabBtn.Parent = UI.TabSelectorContainer
     local TabContent = Instance.new("ScrollingFrame"); TabContent.Size = UDim2.new(1, -10, 1, -10); TabContent.Position = UDim2.new(0, 5, 0, 5); TabContent.BackgroundTransparency = 1; TabContent.ScrollBarThickness = 2; TabContent.Visible = false; TabContent.Parent = UI.ContentContainer
     local ContentLayout = Instance.new("UIListLayout"); ContentLayout.Parent = TabContent; ContentLayout.SortOrder = Enum.SortOrder.LayoutOrder; ContentLayout.Padding = UDim.new(0, 6)
@@ -75,18 +100,18 @@ getgenv().UI.CreateTab = function(name, icon)
     table.insert(UI.Tabs, {Button = TabBtn, Content = TabContent}); return TabContent
 end
 
-getgenv().UI.CreateLabel = function(parent, text)
+UI.CreateLabel = function(parent, text)
     local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(1, 0, 0, 20); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(150, 150, 180); Label.Text = text; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.GothamBold; Label.TextSize = 12; Label.Parent = parent
     return Label
 end
 
-getgenv().UI.CreateButton = function(parent, text, callback, color)
+UI.CreateButton = function(parent, text, callback, color)
     local Btn = Instance.new("TextButton"); Btn.Size = UDim2.new(1, -5, 0, 32); Btn.BackgroundColor3 = color or Color3.fromRGB(45, 100, 255); Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.Text = text; Btn.Font = Enum.Font.GothamSemibold; Btn.TextSize = 13; Btn.Parent = parent
     Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4); Btn.MouseButton1Click:Connect(callback)
     return Btn
 end
 
-getgenv().UI.CreateToggle = function(parent, text, defaultState, callback)
+UI.CreateToggle = function(parent, text, defaultState, callback)
     local ToggleBtn = Instance.new("TextButton"); ToggleBtn.Size = UDim2.new(1, -5, 0, 32); ToggleBtn.BackgroundColor3 = defaultState and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(40, 40, 50); ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255); ToggleBtn.Text = text .. " [" .. (defaultState and "ON" or "OFF") .. "]"; ToggleBtn.Font = Enum.Font.GothamSemibold; ToggleBtn.TextSize = 13; ToggleBtn.Parent = parent
     Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
     local state = defaultState
@@ -96,7 +121,7 @@ getgenv().UI.CreateToggle = function(parent, text, defaultState, callback)
     end)
 end
 
-getgenv().UI.CreateDropdown = function(parent, title, options, defaultOption, callback)
+UI.CreateDropdown = function(parent, title, options, defaultOption, callback)
     local DropFrame = Instance.new("Frame"); DropFrame.Size = UDim2.new(1, -5, 0, 32); DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40); DropFrame.ClipsDescendants = true; DropFrame.Parent = parent
     Instance.new("UICorner", DropFrame).CornerRadius = UDim.new(0, 4)
     local MainBtn = Instance.new("TextButton"); MainBtn.Size = UDim2.new(1, 0, 0, 32); MainBtn.BackgroundTransparency = 1; MainBtn.TextColor3 = Color3.fromRGB(200, 200, 200); MainBtn.Text = "  " .. title .. ": " .. defaultOption; MainBtn.Font = Enum.Font.GothamSemibold; MainBtn.TextSize = 12; MainBtn.TextXAlignment = Enum.TextXAlignment.Left; MainBtn.Parent = DropFrame
@@ -129,7 +154,7 @@ getgenv().UI.CreateDropdown = function(parent, title, options, defaultOption, ca
     return { Refresh = refresh }
 end
 
-getgenv().UI.CreateTextBox = function(parent, title, defaultText, callback)
+UI.CreateTextBox = function(parent, title, defaultText, callback)
     local Container = Instance.new("Frame"); Container.Size = UDim2.new(1, -5, 0, 32); Container.BackgroundColor3 = Color3.fromRGB(30, 30, 40); Container.Parent = parent
     Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 4)
     local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(0.6, 0, 1, 0); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(200, 200, 200); Label.Text = "  " .. title; Label.Font = Enum.Font.GothamSemibold; Label.TextSize = 12; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Parent = Container
@@ -152,7 +177,7 @@ local InfoBoss = UI.CreateLabel(TabDash, "Bônus Boss/Crit: Carregando...")
 local InfoPity = UI.CreateLabel(TabDash, "Sorte: Carregando...")
 
 task.spawn(function()
-    while isRunning and task.wait(1) do
+    while getgenv().isRunning and task.wait(1) do
         pcall(function()
             local race = LP:GetAttribute("CurrentRace") or "Humano"; local clan = LP:GetAttribute("CurrentClan") or "Nenhum"
             local meleeDmg = LP:GetAttribute("RaceMeleeDamage") or 0; local swordDmg = LP:GetAttribute("RaceSwordDamage") or 0
@@ -225,7 +250,7 @@ end
 UI.CreateLabel(TabStats, "--------------------------------------------------------")
 UI.CreateToggle(TabStats, "Ativar Auto Distribuir", false, function(v) HubConfig.AutoStats = v end)
 UI.CreateButton(TabStats, "🔄 Reset Status", function() if ResetStatsRemote then ResetStatsRemote:FireServer() end end, Color3.fromRGB(200, 60, 60))
-task.spawn(function() while isRunning and task.wait(1) do pcall(function() local data = LP:FindFirstChild("Data"); if data and data:FindFirstChild("StatPoints") then InfoPoints.Text = "Pontos Disponíveis: " .. tostring(data.StatPoints.Value) else InfoPoints.Text = "Pontos Disponíveis: 0" end end) end end)
+task.spawn(function() while getgenv().isRunning and task.wait(1) do pcall(function() local data = LP:FindFirstChild("Data"); if data and data:FindFirstChild("StatPoints") then InfoPoints.Text = "Pontos Disponíveis: " .. tostring(data.StatPoints.Value) else InfoPoints.Text = "Pontos Disponíveis: 0" end end) end end)
 
 -- ABA 6: ROLETA
 local TabRoleta = UI.CreateTab("Roleta", "🎲")
@@ -264,3 +289,4 @@ UI.CreateToggle(TabMisc, "Super Velocidade", false, function(v) HubConfig.SuperS
 UI.CreateToggle(TabMisc, "Pulo Infinito", false, function(v) HubConfig.InfJump = v end)
 
 print("✅ Comunidade Hub - Módulos Carregados com Sucesso!")
+}

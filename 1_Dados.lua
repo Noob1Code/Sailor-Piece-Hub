@@ -1,4 +1,3 @@
--- SERVIÇOS DO ROBLOX
 getgenv().Players = game:GetService("Players")
 getgenv().RS = game:GetService("ReplicatedStorage")
 getgenv().Workspace = game:GetService("Workspace")
@@ -6,9 +5,8 @@ getgenv().CoreGui = game:GetService("CoreGui")
 getgenv().UserInputService = game:GetService("UserInputService")
 getgenv().TweenService = game:GetService("TweenService")
 getgenv().RunService = game:GetService("RunService")
+getgenv().HttpService = game:GetService("HttpService")
 getgenv().LP = Players.LocalPlayer
-
--- REMOTES
 getgenv().CombatRemote = nil
 getgenv().AbilityRemote = nil
 getgenv().TeleportRemote = nil
@@ -33,58 +31,11 @@ pcall(function()
     getgenv().RerollSingleStatRemote = RS:FindFirstChild("RerollSingleStat", true)
 end)
 
--- DICIONÁRIO DE TELEPORTE
-getgenv().TeleportMap = {
-    ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert",
-    ["Snow"] = "Snow", ["Sailor"] = "Sailor", ["Shibuya Station"] = "Shibuya",
-    ["Hueco Mundo"] = "HuecoMundo", ["Boss Island"] = "Boss", ["Dungeon"] = "Dungeon",
-    ["Shinjuku"] = "Shinjuku", ["Slime"] = "Slime", ["Academy"] = "Academy",
-    ["Judgement"] = "Judgement", ["Soul Society"] = "SoulSociety"
-}
+getgenv().TeleportMap = { ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert", ["Snow"] = "Snow", ["Sailor"] = "Sailor", ["Shibuya Station"] = "Shibuya", ["Hueco Mundo"] = "HuecoMundo", ["Boss Island"] = "Boss", ["Dungeon"] = "Dungeon", ["Shinjuku"] = "Shinjuku", ["Slime"] = "Slime", ["Academy"] = "Academy", ["Judgement"] = "Judgement", ["Soul Society"] = "SoulSociety" }
+getgenv().IslandDataMap = { ["Starter"] = { Mobs = {"Thief"}, Bosses = {"ThiefBoss"} }, ["Jungle"] = { Mobs = {"Monkey"}, Bosses = {"MonkeyBoss"} }, ["Desert"] = { Mobs = {"DesertBandit"}, Bosses = {"DesertBoss"} }, ["Snow"] = { Mobs = {"FrostRogue"}, Bosses = {"SnowBoss"} }, ["Shibuya"] = { Mobs = {"Sorcerer"}, Bosses = {"PandaMiniBoss"} }, ["Hueco Mundo"] = { Mobs = {"Hollow"}, Bosses = {} }, ["Shinjuku"] = { Mobs = {"Curse", "StrongSorcerer"}, Bosses = {} }, ["Slime"] = { Mobs = {"Slime"}, Bosses = {} }, ["Academy"] = { Mobs = {"AcademyTeacher"}, Bosses = {} }, ["Judgement"] = { Mobs = {}, Bosses = {} }, ["Soul Society"] = { Mobs = {"Swordsman", "Quincy"}, Bosses = {} }, ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"GojoBoss", "SukunaBoss", "YujiBoss", "JinwooBoss", "AizenBoss", "YamatoBoss", "AlucardBoss", "MadokaBoss", "Rimuru"} } }
+getgenv().QuestDataMap = { ["Starter"] = {{Name = "Quest 1: Mobs (Thief)", NPC = "QuestNPC1", Target = "Thief", Type = "Mob"}, {Name = "Quest 2: Boss (Thief Boss)", NPC = "QuestNPC2", Target = "ThiefBoss", Type = "Boss"}}, ["Jungle"] = {{Name = "Quest 3: Mobs (Monkey)", NPC = "QuestNPC3", Target = "Monkey", Type = "Mob"}, {Name = "Quest 4: Boss (Monkey Boss)", NPC = "QuestNPC4", Target = "MonkeyBoss", Type = "Boss"}}, ["Desert"] = {{Name = "Quest 5: Mobs (Bandits)", NPC = "QuestNPC5", Target = "DesertBandit", Type = "Mob"}, {Name = "Quest 6: Boss (Desert Boss)", NPC = "QuestNPC6", Target = "DesertBoss", Type = "Boss"}}, ["Snow"] = {{Name = "Quest 7: Mobs (Frost Rogue)", NPC = "QuestNPC7", Target = "FrostRogue", Type = "Mob"}, {Name = "Quest 8: Boss (Snow Boss)", NPC = "QuestNPC8", Target = "SnowBoss", Type = "Boss"}}, ["Shibuya"] = {{Name = "Quest 9: Mobs (Sorcerer)", NPC = "QuestNPC9", Target = "Sorcerer", Type = "Mob"}, {Name = "Quest 10: Mobs (Panda Sorcerer)", NPC = "QuestNPC10", Target = "PandaMiniBoss", Type = "Boss"}}, ["Hueco Mundo"] = {{Name = "Quest 11: Mobs (Hollow)", NPC = "QuestNPC11", Target = "Hollow", Type = "Mob"}}, ["Shinjuku"] = {{Name = "Quest 12: Mobs", NPC = "QuestNPC12", Target = "StrongSorcerer", Type = "Mob"}, {Name = "Quest 13: Mobs", NPC = "QuestNPC13", Target = "Curse", Type = "Mob"}}, ["Slime"] = {{Name = "Quest 14: Mobs (Slime)", NPC = "QuestNPC14", Target = "Slime", Type = "Mob"}}, ["Academy"] = {{Name = "Quest 15: Mobs (Teacher)", NPC = "QuestNPC15", Target = "AcademyTeacher", Type = "Mob"}}, ["Judgement"] = {{Name = "Quest 16: Mobs", NPC = "QuestNPC16", Target = "Nenhum", Type = "Mob"}}, ["Soul Society"] = {{Name = "Quest 17: Mobs", NPC = "QuestNPC17", Target = "Swordsman", Type = "Mob"}} }
+getgenv().QuestProgression = { { Island = "Starter", Quest = "Quest 1: Mobs (Thief)", MinLevel = 1 }, { Island = "Starter", Quest = "Quest 2: Boss (Thief Boss)", MinLevel = 100 }, { Island = "Jungle", Quest = "Quest 3: Mobs (Monkey)", MinLevel = 250 }, { Island = "Jungle", Quest = "Quest 4: Boss (Monkey Boss)", MinLevel = 500 }, { Island = "Desert", Quest = "Quest 5: Mobs (Bandits)", MinLevel = 750 }, { Island = "Desert", Quest = "Quest 6: Boss (Desert Boss)", MinLevel = 1000 }, { Island = "Snow", Quest = "Quest 7: Mobs (Frost Rogue)", MinLevel = 1500 }, { Island = "Snow", Quest = "Quest 8: Boss (Snow Boss)", MinLevel = 2000 }, { Island = "Shibuya", Quest = "Quest 9: Mobs (Sorcerer)", MinLevel = 3000 }, { Island = "Shibuya", Quest = "Quest 10: Mobs (Panda Sorcerer)", MinLevel = 4000 }, { Island = "Hueco Mundo", Quest = "Quest 11: Mobs (Hollow)", MinLevel = 5000 }, { Island = "Shinjuku", Quest = "Quest 12: Mobs", MinLevel = 6250 }, { Island = "Shinjuku", Quest = "Quest 13: Mobs", MinLevel = 7000 }, { Island = "Slime", Quest = "Quest 14: Mobs (Slime)", MinLevel = 8000 }, { Island = "Academy", Quest = "Quest 15: Mobs (Teacher)", MinLevel = 10000 }, { Island = "Judgement", Quest = "Quest 16: Mobs", MinLevel = 10750 }, { Island = "Soul Society", Quest = "Quest 17: Mobs", MinLevel = 11500 } }
 
--- MAPA DE DADOS INTELIGENTE
-getgenv().IslandDataMap = {
-    ["Starter"] = { Mobs = {"Thief"}, Bosses = {"ThiefBoss"} },
-    ["Jungle"] = { Mobs = {"Monkey"}, Bosses = {"MonkeyBoss"} },
-    ["Desert"] = { Mobs = {"DesertBandit"}, Bosses = {"DesertBoss"} },
-    ["Snow"] = { Mobs = {"FrostRogue"}, Bosses = {"SnowBoss"} },
-    ["Shibuya"] = { Mobs = {"Sorcerer"}, Bosses = {"PandaMiniBoss"} }, 
-    ["Hueco Mundo"] = { Mobs = {"Hollow"}, Bosses = {} },
-    ["Shinjuku"] = { Mobs = {"Curse", "StrongSorcerer"}, Bosses = {} },
-    ["Slime"] = { Mobs = {"Slime"}, Bosses = {} },
-    ["Academy"] = { Mobs = {"AcademyTeacher"}, Bosses = {} },
-    ["Judgement"] = { Mobs = {}, Bosses = {} },
-    ["Soul Society"] = { Mobs = {"Swordsman", "Quincy"}, Bosses = {} },
-    ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"GojoBoss", "SukunaBoss", "YujiBoss", "JinwooBoss", "AizenBoss", "YamatoBoss", "AlucardBoss", "MadokaBoss", "Rimuru"} }
-}
-
-getgenv().QuestDataMap = {
-    ["Starter"] = {{Name = "Quest 1: Mobs (Thief)", NPC = "QuestNPC1", Target = "Thief", Type = "Mob"}, {Name = "Quest 2: Boss (Thief Boss)", NPC = "QuestNPC2", Target = "ThiefBoss", Type = "Boss"}},
-    ["Jungle"] = {{Name = "Quest 3: Mobs (Monkey)", NPC = "QuestNPC3", Target = "Monkey", Type = "Mob"}, {Name = "Quest 4: Boss (Monkey Boss)", NPC = "QuestNPC4", Target = "MonkeyBoss", Type = "Boss"}},
-    ["Desert"] = {{Name = "Quest 5: Mobs (Bandits)", NPC = "QuestNPC5", Target = "DesertBandit", Type = "Mob"}, {Name = "Quest 6: Boss (Desert Boss)", NPC = "QuestNPC6", Target = "DesertBoss", Type = "Boss"}},
-    ["Snow"] = {{Name = "Quest 7: Mobs (Frost Rogue)", NPC = "QuestNPC7", Target = "FrostRogue", Type = "Mob"}, {Name = "Quest 8: Boss (Snow Boss)", NPC = "QuestNPC8", Target = "SnowBoss", Type = "Boss"}},
-    ["Shibuya"] = {{Name = "Quest 9: Mobs (Sorcerer)", NPC = "QuestNPC9", Target = "Sorcerer", Type = "Mob"}, {Name = "Quest 10: Mobs (Panda Sorcerer)", NPC = "QuestNPC10", Target = "PandaMiniBoss", Type = "Boss"}},
-    ["Hueco Mundo"] = {{Name = "Quest 11: Mobs (Hollow)", NPC = "QuestNPC11", Target = "Hollow", Type = "Mob"}},
-    ["Shinjuku"] = {{Name = "Quest 12: Mobs", NPC = "QuestNPC12", Target = "StrongSorcerer", Type = "Mob"}, {Name = "Quest 13: Mobs", NPC = "QuestNPC13", Target = "Curse", Type = "Mob"}},
-    ["Slime"] = {{Name = "Quest 14: Mobs (Slime)", NPC = "QuestNPC14", Target = "Slime", Type = "Mob"}},
-    ["Academy"] = {{Name = "Quest 15: Mobs (Teacher)", NPC = "QuestNPC15", Target = "AcademyTeacher", Type = "Mob"}},
-    ["Judgement"] = {{Name = "Quest 16: Mobs", NPC = "QuestNPC16", Target = "Nenhum", Type = "Mob"}},
-    ["Soul Society"] = {{Name = "Quest 17: Mobs", NPC = "QuestNPC17", Target = "Swordsman", Type = "Mob"}}
-}
-
-getgenv().QuestProgression = {
-    { Island = "Starter", Quest = "Quest 1: Mobs (Thief)", MinLevel = 1 }, { Island = "Starter", Quest = "Quest 2: Boss (Thief Boss)", MinLevel = 100 },
-    { Island = "Jungle", Quest = "Quest 3: Mobs (Monkey)", MinLevel = 250 }, { Island = "Jungle", Quest = "Quest 4: Boss (Monkey Boss)", MinLevel = 500 },
-    { Island = "Desert", Quest = "Quest 5: Mobs (Bandits)", MinLevel = 750 }, { Island = "Desert", Quest = "Quest 6: Boss (Desert Boss)", MinLevel = 1000 },
-    { Island = "Snow", Quest = "Quest 7: Mobs (Frost Rogue)", MinLevel = 1500 }, { Island = "Snow", Quest = "Quest 8: Boss (Snow Boss)", MinLevel = 2000 },
-    { Island = "Shibuya", Quest = "Quest 9: Mobs (Sorcerer)", MinLevel = 3000 }, { Island = "Shibuya", Quest = "Quest 10: Mobs (Panda Sorcerer)", MinLevel = 4000 },
-    { Island = "Hueco Mundo", Quest = "Quest 11: Mobs (Hollow)", MinLevel = 5000 }, { Island = "Shinjuku", Quest = "Quest 12: Mobs", MinLevel = 6250 },
-    { Island = "Shinjuku", Quest = "Quest 13: Mobs", MinLevel = 7000 }, { Island = "Slime", Quest = "Quest 14: Mobs (Slime)", MinLevel = 8000 },
-    { Island = "Academy", Quest = "Quest 15: Mobs (Teacher)", MinLevel = 10000 }, { Island = "Judgement", Quest = "Quest 16: Mobs", MinLevel = 10750 },
-    { Island = "Soul Society", Quest = "Quest 17: Mobs", MinLevel = 11500 }
-}
-
--- VARIÁVEIS DE CONTROLE (HubConfig)
 getgenv().HubConfig = {
     FilterOptions = {"Todas", "Starter", "Jungle", "Desert", "Snow", "Shibuya", "Hueco Mundo", "Shinjuku", "Slime", "Academy", "Judgement", "Soul Society", "Eventos (Timed Bosses)"},
     QuestFilterOptions = {"Starter", "Jungle", "Desert", "Snow", "Shibuya", "Hueco Mundo", "Shinjuku", "Slime", "Academy", "Judgement", "Soul Society"},
@@ -108,12 +59,53 @@ getgenv().HubConfig = {
     FruitSniper = false
 }
 
--- REFERÊNCIAS INTERNAS
-getgenv().MobDropdownRef = nil
-getgenv().BossDropdownRef = nil
-getgenv().NPCDropdownRef = nil
-getgenv().QuestDropdownRef = nil
-getgenv().WeaponDropdownRef = nil
-getgenv().CurrentTarget = nil 
-getgenv().FarmTarget = nil 
-getgenv().FruitSniperEvent = nil
+getgenv().MobDropdownRef = nil; getgenv().BossDropdownRef = nil; getgenv().NPCDropdownRef = nil; getgenv().QuestDropdownRef = nil; getgenv().WeaponDropdownRef = nil
+getgenv().CurrentTarget = nil; getgenv().FarmTarget = nil; getgenv().FruitSniperEvent = nil
+
+local ConfigFolderName = "ComunidadeHub"
+local ConfigFileName = ConfigFolderName .. "/SailorPiece_Config.json"
+
+getgenv().SaveSettings = function()
+    pcall(function()
+        if not isfolder(ConfigFolderName) then makefolder(ConfigFolderName) end
+        
+        local DataToSave = {
+            AutoFarm = HubConfig.AutoFarm, SelectedMob = HubConfig.SelectedMob,
+            AutoBoss = HubConfig.AutoBoss, SelectedBoss = HubConfig.SelectedBoss,
+            AutoDummy = HubConfig.AutoDummy, SelectedWeapon = HubConfig.SelectedWeapon,
+            AutoQuest = HubConfig.AutoQuest, SelectedQuestIsland = HubConfig.SelectedQuestIsland, AutoFarmMaxLevel = HubConfig.AutoFarmMaxLevel,
+            Distance = HubConfig.Distance, AttackPosition = HubConfig.AttackPosition,
+            AutoCollect = HubConfig.AutoCollect, AutoGroupReward = HubConfig.AutoGroupReward,
+            AutoStats = HubConfig.AutoStats, SelectedStats = HubConfig.SelectedStats,
+            SuperSpeed = HubConfig.SuperSpeed, InfJump = HubConfig.InfJump,
+            AutoOpenChests = HubConfig.AutoOpenChests, AutoReroll = HubConfig.AutoReroll,
+            HacksNativos = HubConfig.HacksNativos, FruitSniper = HubConfig.FruitSniper
+        }
+        
+        local JSONData = getgenv().HttpService:JSONEncode(DataToSave)
+        writefile(ConfigFileName, JSONData)
+    end)
+end
+
+getgenv().LoadSettings = function()
+    pcall(function()
+        if isfile(ConfigFileName) then
+            local JSONData = readfile(ConfigFileName)
+            local DecodedData = getgenv().HttpService:JSONDecode(JSONData)
+            
+            if type(DecodedData) == "table" then
+                for key, value in pairs(DecodedData) do
+                    if HubConfig[key] ~= nil then
+                        if type(value) == "table" and type(HubConfig[key]) == "table" then
+                            for subKey, subValue in pairs(value) do HubConfig[key][subKey] = subValue end
+                        else
+                            HubConfig[key] = value
+                        end
+                    end
+                end
+            end
+        end
+    end)
+end
+
+getgenv().LoadSettings()

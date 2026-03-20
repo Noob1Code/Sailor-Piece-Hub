@@ -101,35 +101,54 @@ getgenv().getCurrentIsland = function()
     return closestIsland
 end
 
--- 🌟 NOVA FUNÇÃO: AUTO SAVE SPAWN INTELIGENTE 🌟
+-- 🌟 NOVA FUNÇÃO: AUTO SAVE SPAWN INTELIGENTE (LIMITADOR DE DISTÂNCIA) 🌟
 getgenv().AutoSaveSpawn = function()
     pcall(function()
+        local char = LP.Character
+        if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
+        local hrp = char.HumanoidRootPart
+        local myPos = hrp.Position
+
+        local closestPrompt = nil
+        local targetPart = nil
+        local minDist = math.huge
+
+        -- Varre o mapa à procura do botão de Checkpoint MAIS PRÓXIMO
         for _, obj in pairs(Workspace:GetDescendants()) do
-            local name = string.lower(obj.Name)
-            -- Procura qualquer coisa que lembre um NPC ou placa de Spawn
-            if name:find("spawn") or name:find("setspawn") or name:find("checkpoint") then
-                local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) or (obj.Parent and obj.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
-                if prompt then
-                    local char = LP.Character
-                    if char and char:FindFirstChild("HumanoidRootPart") then
-                        local hrp = char.HumanoidRootPart
-                        local oldCFrame = hrp.CFrame
-                        local targetCFrame = obj:IsA("Model") and obj.PrimaryPart and obj.PrimaryPart.CFrame or (obj:IsA("BasePart") and obj.CFrame)
-                        
-                        if targetCFrame then
-                            -- Dá um pulo instantâneo até o botão de spawn, salva e volta
-                            hrp.CFrame = targetCFrame
-                            task.wait(0.5)
-                            if fireproximityprompt then fireproximityprompt(prompt) end
-                            task.wait(0.5)
-                            hrp.CFrame = oldCFrame
-                            return true
+            if obj:IsA("ProximityPrompt") then
+                local actionText = string.lower(obj.ActionText)
+                local promptName = obj.Name
+                
+                if promptName == "CheckpointPrompt" or actionText == "set spawn" then
+                    local part = obj.Parent
+                    if part and part:IsA("BasePart") then
+                        local dist = (part.Position - myPos).Magnitude
+                        -- Limita a 500 studs: Garante que só vai apanhar o spawn da ilha onde realmente está!
+                        if dist < minDist and dist < 500 then
+                            minDist = dist
+                            closestPrompt = obj
+                            targetPart = part
                         end
                     end
                 end
             end
         end
+
+        if closestPrompt and targetPart then
+            local oldCFrame = hrp.CFrame
+            
+            -- Dá um salto instantâneo seguro
+            hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
+            task.wait(0.5)
+            
+            if fireproximityprompt then fireproximityprompt(closestPrompt) end
+            
+            task.wait(0.5)
+            hrp.CFrame = oldCFrame
+            return true 
+        end
     end)
+    return false
 end
 
 getgenv().lastTeleportTime = 0
@@ -137,14 +156,32 @@ getgenv().SmartIslandTeleport = function(islandName)
     if not islandName or islandName == "Eventos (Timed Bosses)" then return false end
     if tick() - getgenv().lastTeleportTime < 3 then return false end 
     local dest = TeleportMap[islandName] or islandName
+    
     if TeleportRemote then
-        getgenv().unfreezeCharacter(LP.Character)
+        local char = LP.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        local oldPos = hrp and hrp.Position or Vector3.zero
+
+        getgenv().unfreezeCharacter(char)
         TeleportRemote:FireServer(dest)
         getgenv().lastTeleportTime = tick()
         getgenv().CurrentTarget = nil
         getgenv().FarmTarget = nil
-        task.wait(2) -- Espera 2 segundos o mapa novo carregar
-        getgenv().AutoSaveSpawn() -- Tenta salvar o spawn assim que chega na ilha!
+
+        -- ESPERA INTELIGENTE: Monitoriza se a personagem mudou realmente de ilha
+        if hrp then
+            for i = 1, 15 do -- Aguarda até 7.5 segundos pelo teletransporte
+                task.wait(0.5)
+                if (hrp.Position - oldPos).Magnitude > 200 then
+                    break -- A distância mudou drasticamente, o teletransporte foi concluído!
+                end
+            end
+        else
+            task.wait(3)
+        end
+        
+        task.wait(1) -- Espera 1 segundo extra para o mapa físico carregar em volta
+        getgenv().AutoSaveSpawn() -- Agora salva no local correto e mais próximo!
         return true
     end
     return false
@@ -279,7 +316,7 @@ getgenv().getValidTarget = function(typeStr, name)
         for _, obj in pairs(Workspace:GetChildren()) do
             if obj.Name:find("BossSpawn_") or obj.Name:find("TimedBoss") or obj.Name == "NPCs" then
                 for _, boss in pairs(obj:GetDescendants()) do
-                    if boss:IsA("Model") and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 then
+                    if boss:IsA("Model") and boss:FindFirstChild("Humanoid") and boss.Health > 0 then
                         if boss.Name:find(name) and (boss:GetAttribute("Boss") or boss:GetAttribute("_IsTimedBoss") or boss.Name:lower():find("boss")) then 
                             local hrp = boss:FindFirstChild("HumanoidRootPart")
                             if hrp then local dist = (myPos - hrp.Position).Magnitude; if dist < minDist then minDist = dist; closest = boss end end

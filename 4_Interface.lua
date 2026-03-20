@@ -289,4 +289,3 @@ UI.CreateToggle(TabMisc, "Super Velocidade", false, function(v) HubConfig.SuperS
 UI.CreateToggle(TabMisc, "Pulo Infinito", false, function(v) HubConfig.InfJump = v end)
 
 print("✅ Comunidade Hub - Módulos Carregados com Sucesso!")
-}

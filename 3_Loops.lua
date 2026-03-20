@@ -89,13 +89,29 @@ task.spawn(function()
                 hasAction = true 
             end
             
-            if not hasAction and HubConfig.AutoBoss and HubConfig.SelectedBoss ~= "Nenhum" then 
-                local targetIsland = getIslandByTarget("Boss", HubConfig.SelectedBoss)
-                if myIsland and targetIsland and targetIsland ~= "Eventos (Timed Bosses)" and myIsland ~= targetIsland then
-                    SmartIslandTeleport(targetIsland); hasAction = true
-                else
-                    getgenv().FarmTarget = getValidTarget("Boss", HubConfig.SelectedBoss)
-                    hasAction = true
+            if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then 
+                local bossFound = false
+                
+                for _, bossName in ipairs(HubConfig.SelectedBosses) do
+                    local bTarget = getValidTarget("Boss", bossName)
+                    if bTarget then
+                        getgenv().FarmTarget = bTarget
+                        bossFound = true
+                        hasAction = true
+                        break
+                    end
+                end
+            
+                if not bossFound then
+                    local firstBoss = HubConfig.SelectedBosses[1]
+                    local targetIsland = getIslandByTarget("Boss", firstBoss)
+                    if myIsland and targetIsland and targetIsland ~= "Eventos (Timed Bosses)" and myIsland ~= targetIsland then
+                        SmartIslandTeleport(targetIsland)
+                        hasAction = true
+                    else
+                        getgenv().FarmTarget = getValidTarget("Boss", firstBoss)
+                        hasAction = true
+                    end
                 end
             end
             

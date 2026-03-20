@@ -169,6 +169,8 @@ UI.CreateTextBox = function(parent, title, defaultText, callback)
     end)
 end
 
+UI.Init()
+
 -- ABA 1: DASHBOARD
 local TabDash = UI.CreateTab("Dashboard", "📊")
 UI.CreateLabel(TabDash, "INFORMAÇÕES DO JOGADOR")

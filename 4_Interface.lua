@@ -86,19 +86,15 @@ function Library.new(title)
     return self
 end
 
--- =====================================================================
--- 🌟 SISTEMA DE NOTIFICAÇÃO (TOAST) 🌟
--- =====================================================================
 function Library:Notify(title, text, duration)
-    duration = duration or 3 -- Tempo padrão de 3 segundos
+    duration = duration or 3
     
     local Notif = Instance.new("Frame")
     Notif.Size = UDim2.new(1, 0, 0, 60)
     Notif.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    Notif.BackgroundTransparency = 1 -- Começa invisível para a animação
+    Notif.BackgroundTransparency = 1
     Instance.new("UICorner", Notif).CornerRadius = UDim.new(0, 6)
     
-    -- Efeito de Borda Lateral Colorida (Estilo Premium)
     local SideBar = Instance.new("Frame")
     SideBar.Size = UDim2.new(0, 4, 1, 0)
     SideBar.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
@@ -134,14 +130,12 @@ function Library:Notify(title, text, duration)
 
     Notif.Parent = self.NotifyFrame
 
-    -- Animação de Entrada (Fade In)
     local TweenService = getgenv().TweenService
     TweenService:Create(Notif, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
     TweenService:Create(SideBar, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
     TweenService:Create(TitleLbl, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
     TweenService:Create(DescLbl, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
 
-    -- Temporizador para destruir (Fade Out)
     task.spawn(function()
         task.wait(duration)
         local fadeOut = TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1})
@@ -172,7 +166,6 @@ function Library:CreateTab(name, icon)
     table.insert(self.Tabs, {Button = TabBtn, Content = TabContent})
     Tab.Container = TabContent
 
-    -- MÉTODOS DA ABA
     function Tab:CreateLabel(text)
         local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(1, 0, 0, 20); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(150, 150, 180); Label.Text = text; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.GothamBold; Label.TextSize = 12; Label.Parent = self.Container
         return Label
@@ -246,7 +239,6 @@ end
 
 local UI = Library.new("Comunidade Hub V22.2 (Modularizado OOP)")
 
--- ABA 1: DASHBOARD
 local TabDash = UI:CreateTab("Dashboard", "📊")
 TabDash:CreateLabel("INFORMAÇÕES DO JOGADOR")
 local InfoRace = TabDash:CreateLabel("Raça: Carregando...")
@@ -267,7 +259,6 @@ task.spawn(function()
     end
 end)
 
--- ABA 2: MISSÕES
 local TabMissions = UI:CreateTab("Missões", "📜")
 TabMissions:CreateLabel("⚡ MODO AUTO LEVEL MÁXIMO (1 AO MAX)")
 TabMissions:CreateToggle("ATIVAR PILOTO AUTOMÁTICO", HubConfig.AutoFarmMaxLevel, function(v) HubConfig.AutoFarmMaxLevel = v; if v then HubConfig.AutoQuest = false end end)
@@ -278,7 +269,6 @@ local initialQuests = getQuestsForIsland(HubConfig.SelectedQuestIsland)
 getgenv().QuestDropdownRef = TabMissions:CreateDropdown("Escolha a Missão", initialQuests, HubConfig.SelectedQuest or initialQuests[1], function(s) HubConfig.SelectedQuest = s end)
 TabMissions:CreateToggle("FARM MISSÃO SELECIONADA", HubConfig.AutoQuest, function(v) HubConfig.AutoQuest = v; if v then HubConfig.AutoFarmMaxLevel = false end end)
 
--- ABA 3: COMBATE
 local TabCombat = UI:CreateTab("Combate", "⚔️")
 TabCombat:CreateLabel("🔍 SISTEMA DE MAPA")
 TabCombat:CreateButton("Varrer Ilha (Atualizar NPCs Existentes)", function() HubConfig.AvailableMobs = getMobList(HubConfig.SelectedFilter); if getgenv().MobDropdownRef then getgenv().MobDropdownRef.Refresh(HubConfig.AvailableMobs) end end)
@@ -305,7 +295,6 @@ TabCombat:CreateLabel("🗡️ ESCOLHA SUA ARMA")
 TabCombat:CreateButton("Atualizar Lista de Armas no Inventário", function() HubConfig.AvailableWeapons = getWeaponList(); if getgenv().WeaponDropdownRef then getgenv().WeaponDropdownRef.Refresh(HubConfig.AvailableWeapons) end end)
 getgenv().WeaponDropdownRef = TabCombat:CreateDropdown("Arma para Auto Farm", HubConfig.AvailableWeapons, HubConfig.SelectedWeapon, function(s) HubConfig.SelectedWeapon = s end)
 
--- ABA 4: ITENS
 local TabCollect = UI:CreateTab("Itens", "🎒")
 TabCollect:CreateToggle("Auto Group Reward", HubConfig.AutoGroupReward, function(v) HubConfig.AutoGroupReward = v end)
 TabCollect:CreateToggle("Coletar Frutas (Map Scan)", HubConfig.AutoCollect.Fruits, function(v) HubConfig.AutoCollect.Fruits = v end)
@@ -313,7 +302,6 @@ TabCollect:CreateToggle("Coletar Hogyoku", HubConfig.AutoCollect.Hogyoku, functi
 TabCollect:CreateToggle("Coletar Puzzles", HubConfig.AutoCollect.Puzzles, function(v) HubConfig.AutoCollect.Puzzles = v end)
 TabCollect:CreateToggle("Coletar Baús do Chão", HubConfig.AutoCollect.Chests, function(v) HubConfig.AutoCollect.Chests = v end)
 
--- ABA 5: STATUS
 local TabStats = UI:CreateTab("Status", "📈")
 local InfoPoints = TabStats:CreateLabel("Pontos Disponíveis: Carregando...")
 TabStats:CreateLabel("--------------------------------------------------------")
@@ -332,13 +320,11 @@ TabStats:CreateToggle("Ativar Auto Distribuir", HubConfig.AutoStats, function(v)
 TabStats:CreateButton("🔄 Reset Status", function() if ResetStatsRemote then ResetStatsRemote:FireServer() end end, Color3.fromRGB(200, 60, 60))
 task.spawn(function() while getgenv().isRunning and task.wait(1) do pcall(function() local data = LP:FindFirstChild("Data"); if data and data:FindFirstChild("StatPoints") then InfoPoints.Text = "Pontos Disponíveis: " .. tostring(data.StatPoints.Value) else InfoPoints.Text = "Pontos Disponíveis: 0" end end) end end)
 
--- ABA 6: ROLETA
 local TabRoleta = UI:CreateTab("Roleta", "🎲")
 TabRoleta:CreateTextBox("Raça Sniper", HubConfig.AutoReroll.TargetRace, function(v) HubConfig.AutoReroll.TargetRace = tostring(v) end)
 TabRoleta:CreateToggle("Iniciar Sniper Raça", HubConfig.AutoReroll.Race, function(v) HubConfig.AutoReroll.Race = v end)
 TabRoleta:CreateToggle("Abrir Todos Baús", HubConfig.AutoOpenChests.Common, function(v) HubConfig.AutoOpenChests.Common = v; HubConfig.AutoOpenChests.Rare = v; HubConfig.AutoOpenChests.Epic = v; HubConfig.AutoOpenChests.Mythical = v end)
 
--- ABA 7: MUNDO
 local TabWorld = UI:CreateTab("Mundo", "🌍")
 local MundoPronto = false 
 TabWorld:CreateLabel("PORTAIS INSTANTÂNEOS")
@@ -347,26 +333,21 @@ TabWorld:CreateLabel("IR ATÉ NPC (VOANDO)")
 TabWorld:CreateDropdown("Selecione o NPC", HubConfig.NPCs, "EnchantNPC", function(s) if MundoPronto then local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(s); if npc and npc:FindFirstChild("HumanoidRootPart") then unfreezeCharacter(LP.Character); SafeTeleport(npc.HumanoidRootPart.Position + Vector3.new(0, 0, 5)) end end end)
 MundoPronto = true
 
--- ABA 8: NATIVOS
 local TabNativos = UI:CreateTab("Nativos", "🕵️‍♂️")
 TabNativos:CreateLabel("HACKS NATIVOS (Indetectáveis)")
 TabNativos:CreateToggle("Haki do Armamento", HubConfig.HacksNativos.HakiArmamento, function(v) HubConfig.HacksNativos.HakiArmamento = v; pcall(function() LP:SetAttribute("AutoArmHaki", v) end) end)
 TabNativos:CreateToggle("Haki da Observação", HubConfig.HacksNativos.HakiObservacao, function(v) HubConfig.HacksNativos.HakiObservacao = v; pcall(function() LP:SetAttribute("AutoObsHaki", v) end) end)
 TabNativos:CreateToggle("Hack de Pulos Extras", HubConfig.HacksNativos.PuloExtra, function(v) HubConfig.HacksNativos.PuloExtra = v; if not v then pcall(function() LP:SetAttribute("RaceExtraJumps", 0) end) end end)
 
--- ABA 9: FRUIT SNIPER
 local TabSniper = UI:CreateTab("Fruit V2", "🍎")
 TabSniper:CreateToggle("Sniper de Frutas Instantâneo", HubConfig.FruitSniper, function(v) HubConfig.FruitSniper = v end)
 
--- ABA 10: MISC
 local TabMisc = UI:CreateTab("Misc", "⚙️")
 TabMisc:CreateToggle("Super Velocidade", HubConfig.SuperSpeed, function(v) HubConfig.SuperSpeed = v end)
 TabMisc:CreateToggle("Pulo Infinito", HubConfig.InfJump, function(v) HubConfig.InfJump = v end)
 
--- Compartilha o sistema de notificação com os outros arquivos
 getgenv().SendToast = function(titulo, texto, tempo)
     UI:Notify(titulo, texto, tempo)
 end
 
--- Notificação de Boas-vindas automática!
 getgenv().SendToast("Hub Carregado", "Bem-vindo de volta! Suas configurações foram carregadas com sucesso.", 4)

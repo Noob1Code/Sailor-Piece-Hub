@@ -1,3 +1,13 @@
+-- IMPORTAÇÕES GLOBAIS
+local LP = getgenv().LP
+local TweenService = getgenv().TweenService
+local Workspace = getgenv().Workspace
+local HubConfig = getgenv().HubConfig
+local IslandDataMap = getgenv().IslandDataMap
+local QuestDataMap = getgenv().QuestDataMap
+local TeleportMap = getgenv().TeleportMap
+local TeleportRemote = getgenv().TeleportRemote
+
 getgenv().isSafePrompt = function(prompt)
     if not prompt then return false end
     local text = string.lower(prompt.ActionText)
@@ -65,7 +75,7 @@ getgenv().getCurrentIsland = function()
                 if dist < minDist then
                     local isBoss = npc.Name:lower():find("boss") or npc:GetAttribute("Boss")
                     local baseName = npc.Name:gsub("%d+", "")
-                    local island = getIslandByTarget(isBoss and "Boss" or "Mob", baseName)
+                    local island = getgenv().getIslandByTarget(isBoss and "Boss" or "Mob", baseName)
                     if island and island ~= "Eventos (Timed Bosses)" then minDist = dist; closestIsland = island end
                 end
             end
@@ -94,14 +104,14 @@ end
 getgenv().lastTeleportTime = 0
 getgenv().SmartIslandTeleport = function(islandName)
     if not islandName or islandName == "Eventos (Timed Bosses)" then return false end
-    if tick() - lastTeleportTime < 3 then return false end 
+    if tick() - getgenv().lastTeleportTime < 3 then return false end 
     local dest = TeleportMap[islandName] or islandName
     if TeleportRemote then
-        unfreezeCharacter(LP.Character)
+        getgenv().unfreezeCharacter(LP.Character)
         TeleportRemote:FireServer(dest)
-        lastTeleportTime = tick()
-        CurrentTarget = nil
-        FarmTarget = nil
+        getgenv().lastTeleportTime = tick()
+        getgenv().CurrentTarget = nil
+        getgenv().FarmTarget = nil
         task.wait(1.5) 
         return true
     end
@@ -195,6 +205,7 @@ end
 
 getgenv().getValidTarget = function(typeStr, name)
     if name == "Nenhum" or not name then return nil end
+    local CurrentTarget = getgenv().CurrentTarget
     if CurrentTarget and CurrentTarget.Parent and CurrentTarget:FindFirstChild("Humanoid") and CurrentTarget.Humanoid.Health > 0 and CurrentTarget:FindFirstChild("HumanoidRootPart") then
         local isStillValid = false
         if typeStr == "Dummy" and (CurrentTarget.Name == "TrainingDummy" or CurrentTarget:GetAttribute("IsTrainingDummy")) then isStillValid = true
@@ -246,7 +257,7 @@ getgenv().getValidTarget = function(typeStr, name)
             end
         end
     end
-    CurrentTarget = closest
+    getgenv().CurrentTarget = closest
     return closest
 end
 
@@ -269,12 +280,16 @@ getgenv().equipWeapon = function()
 end
 
 getgenv().executeAttackLogic = function(target)
-    if not target or not target:FindFirstChild("HumanoidRootPart") or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then FarmTarget = nil return false end
+    if not target or not target:FindFirstChild("HumanoidRootPart") or not target:FindFirstChild("Humanoid") or target.Humanoid.Health <= 0 then 
+        getgenv().FarmTarget = nil 
+        return false 
+    end
+    
     local char = LP.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
     local hrp = char.HumanoidRootPart; local targetHrp = target.HumanoidRootPart
     
-    freezeCharacter(char)
+    getgenv().freezeCharacter(char)
     local forcedSafe = target:GetAttribute("Damage") and target:GetAttribute("Damage") > 100000
     local finalPos = HubConfig.AttackPosition
     if forcedSafe and finalPos == "Abaixo" then finalPos = "Acima" end
@@ -289,12 +304,12 @@ getgenv().executeAttackLogic = function(target)
     
     if distance > 15 then
         TweenService:Create(hrp, TweenInfo.new(distance / HubConfig.TweenSpeed, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
-        FarmTarget = nil
+        getgenv().FarmTarget = nil
     else
         hrp.CFrame = targetCFrame
         hrp.Velocity = Vector3.zero
-        equipWeapon()
-        FarmTarget = target
+        getgenv().equipWeapon()
+        getgenv().FarmTarget = target
     end
     return true
 end
@@ -309,7 +324,7 @@ getgenv().TeleportAndCollectFruit = function(child)
             local prompt = child:FindFirstChildWhichIsA("ProximityPrompt", true) or (child.Parent and child.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
             local clicker = child:FindFirstChildWhichIsA("ClickDetector", true)
             if prompt or clicker then
-                if prompt and not isSafePrompt(prompt) then return end
+                if prompt and not getgenv().isSafePrompt(prompt) then return end
                 local pos = nil
                 if child:IsA("BasePart") then pos = child.Position
                 elseif child:IsA("Model") then

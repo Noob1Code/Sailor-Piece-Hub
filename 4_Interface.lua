@@ -1,4 +1,3 @@
--- IMPORTAÇÕES GLOBAIS
 local LP = getgenv().LP
 local CoreGui = getgenv().CoreGui
 local UserInputService = getgenv().UserInputService
@@ -11,15 +10,12 @@ local UseItemRemote = getgenv().UseItemRemote
 local TraitRerollRemote = getgenv().TraitRerollRemote
 local RerollSingleStatRemote = getgenv().RerollSingleStatRemote
 local scriptConnections = getgenv().scriptConnections
-
 local getMobList = getgenv().getMobList
 local getBossList = getgenv().getBossList
 local getQuestsForIsland = getgenv().getQuestsForIsland
 local getWeaponList = getgenv().getWeaponList
 local unfreezeCharacter = getgenv().unfreezeCharacter
 local SafeTeleport = getgenv().SafeTeleport
-
--- VARIÁVEIS LOCAIS DA UI
 local MobDropdownRef, BossDropdownRef, QuestDropdownRef, WeaponDropdownRef
 
 getgenv().UI = { Tabs = {}, CurrentTab = nil }
@@ -117,7 +113,9 @@ UI.CreateToggle = function(parent, text, defaultState, callback)
     local state = defaultState
     ToggleBtn.MouseButton1Click:Connect(function()
         state = not state; ToggleBtn.BackgroundColor3 = state and Color3.fromRGB(40, 180, 80) or Color3.fromRGB(40, 40, 50)
-        ToggleBtn.Text = text .. " [" .. (state and "ON" or "OFF") .. "]"; callback(state)
+        ToggleBtn.Text = text .. " [" .. (state and "ON" or "OFF") .. "]"
+        callback(state)
+        if getgenv().SaveSettings then getgenv().SaveSettings() end
     end)
 end
 
@@ -133,6 +131,7 @@ UI.CreateDropdown = function(parent, title, options, defaultOption, callback)
     local function updateSelection(opt)
         MainBtn.Text = "  " .. title .. ": " .. opt; callback(opt)
         isOpen = false; DropFrame.Size = UDim2.new(1, -5, 0, 32)
+        if getgenv().SaveSettings then getgenv().SaveSettings() end
     end
 
     MainBtn.MouseButton1Click:Connect(function()
@@ -147,10 +146,14 @@ UI.CreateDropdown = function(parent, title, options, defaultOption, callback)
             local OptBtn = Instance.new("TextButton"); OptBtn.Size = UDim2.new(1, 0, 0, 25); OptBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45); OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180); OptBtn.Text = "  " .. opt; OptBtn.Font = Enum.Font.Gotham; OptBtn.TextSize = 12; OptBtn.TextXAlignment = Enum.TextXAlignment.Left; OptBtn.Parent = ListFrame
             OptBtn.MouseButton1Click:Connect(function() updateSelection(opt) end)
         end
-        updateSelection(newOptions[1] or "Nenhum")
+        MainBtn.Text = "  " .. title .. ": " .. (newOptions[1] or "Nenhum")
+        callback(newOptions[1] or "Nenhum") 
     end
 
-    refresh(options); updateSelection(defaultOption)
+    refresh(options)
+    MainBtn.Text = "  " .. title .. ": " .. defaultOption
+    callback(defaultOption)
+
     return { Refresh = refresh }
 end
 
@@ -162,10 +165,9 @@ UI.CreateTextBox = function(parent, title, defaultText, callback)
     Instance.new("UICorner", TextBox).CornerRadius = UDim.new(0, 4)
     TextBox.FocusLost:Connect(function() 
         local val = TextBox.Text; if tonumber(val) then callback(tonumber(val)) else callback(val) end 
+        if getgenv().SaveSettings then getgenv().SaveSettings() end
     end)
 end
-
-UI.Init()
 
 -- ABA 1: DASHBOARD
 local TabDash = UI.CreateTab("Dashboard", "📊")

@@ -32,6 +32,51 @@ table.insert(scriptConnections, Workspace.DescendantAdded:Connect(TeleportAndCol
 getgenv().CurrentIslandCache = "Starter"
 
 -- =========================================================================
+-- 📡 MONITOR DE CHAT DO SERVIDOR (BOSS SNIPER)
+-- =========================================================================
+local function MonitorarChat(mensagem)
+    if not HubConfig.AutoBoss or #HubConfig.SelectedBosses == 0 then return end
+    
+    local msg = string.lower(mensagem)
+    -- Verifica se a mensagem é um anúncio de spawn
+    if msg:find("has spawned") then
+        for idx, bossName in ipairs(HubConfig.SelectedBosses) do
+            -- Converte os nomes (ex: "YamatoBoss" vira "yamato", "PandaMiniBoss" vira "panda")
+            local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", ""))
+            
+            if msg:find(baseName) then
+                -- O boss da sua lista acabou de nascer! O script sequestra a fila:
+                getgenv().CurrentBossIndex = idx
+                getgenv().FarmTarget = nil -- Limpa o alvo atual para forçar o teleporte instantâneo
+                
+                if getgenv().SendToast then
+                    getgenv().SendToast("🚨 Boss Sniper", bossName .. " acabou de spawnar! Interceptando...", 5)
+                end
+                break
+            end
+        end
+    end
+end
+
+-- Conecta o monitor aos sistemas de chat do Roblox (Suporta tanto o Novo quanto o Antigo)
+pcall(function()
+    local TextChatService = game:GetService("TextChatService")
+    if TextChatService and TextChatService.Version == Enum.ChatVersion.TextChatService then
+        table.insert(scriptConnections, TextChatService.MessageReceived:Connect(function(textChatMessage)
+            if textChatMessage and textChatMessage.Text then MonitorarChat(textChatMessage.Text) end
+        end))
+    else
+        local RS = game:GetService("ReplicatedStorage")
+        local defaultChat = RS:FindFirstChild("DefaultChatSystemChatEvents")
+        if defaultChat and defaultChat:FindFirstChild("OnMessageDoneFiltering") then
+            table.insert(scriptConnections, defaultChat.OnMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+                if messageData and messageData.Message then MonitorarChat(messageData.Message) end
+            end))
+        end
+    end
+end)
+
+-- =========================================================================
 -- 🧠 TICKER LENTO: CÉREBRO (DECISÕES PESADAS - Roda a cada 1 segundo)
 -- =========================================================================
 task.spawn(function()

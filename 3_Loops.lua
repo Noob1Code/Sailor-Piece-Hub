@@ -32,33 +32,36 @@ table.insert(scriptConnections, Workspace.DescendantAdded:Connect(TeleportAndCol
 getgenv().CurrentIslandCache = "Starter"
 
 -- =========================================================================
--- 📡 MONITOR DE CHAT DO SERVIDOR (BOSS SNIPER)
+-- 📡 MONITOR DE CHAT DO SERVIDOR (BOSS SNIPER PASSIVO)
 -- =========================================================================
+getgenv().BossState = getgenv().BossState or {}
+
 local function MonitorarChat(mensagem)
     if not HubConfig.AutoBoss or #HubConfig.SelectedBosses == 0 then return end
     
     local msg = string.lower(mensagem)
-    -- Verifica se a mensagem é um anúncio de spawn
-    if msg:find("has spawned") then
-        for idx, bossName in ipairs(HubConfig.SelectedBosses) do
-            -- Converte os nomes (ex: "YamatoBoss" vira "yamato", "PandaMiniBoss" vira "panda")
+    
+    if msg:find("spawned") then
+        for _, bossName in ipairs(HubConfig.SelectedBosses) do
             local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", ""))
-            
             if msg:find(baseName) then
-                -- O boss da sua lista acabou de nascer! O script sequestra a fila:
-                getgenv().CurrentBossIndex = idx
-                getgenv().FarmTarget = nil -- Limpa o alvo atual para forçar o teleporte instantâneo
-                
+                getgenv().BossState[bossName] = "Alive"
                 if getgenv().SendToast then
-                    getgenv().SendToast("🚨 Boss Sniper", bossName .. " acabou de spawnar! Interceptando...", 5)
+                    getgenv().SendToast("🚨 Boss Sniper", bossName .. " spawnou! Interceptando...", 4)
                 end
-                break
+            end
+        end
+    elseif msg:find("defeated") then
+        -- Se alguém matar o boss, atualiza a memória para evitar viagem perdida
+        for _, bossName in ipairs(HubConfig.SelectedBosses) do
+            local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", ""))
+            if msg:find(baseName) then
+                getgenv().BossState[bossName] = "Dead"
             end
         end
     end
 end
 
--- Conecta o monitor aos sistemas de chat do Roblox (Suporta tanto o Novo quanto o Antigo)
 pcall(function()
     local TextChatService = game:GetService("TextChatService")
     if TextChatService and TextChatService.Version == Enum.ChatVersion.TextChatService then
@@ -77,7 +80,7 @@ pcall(function()
 end)
 
 -- =========================================================================
--- 🧠 TICKER LENTO: CÉREBRO (DECISÕES PESADAS - Roda a cada 1 segundo)
+-- 🧠 TICKER LENTO: CÉREBRO E PRIORIDADES (Roda a cada 1 segundo)
 -- =========================================================================
 task.spawn(function()
     while getgenv().isRunning and task.wait(1) do
@@ -85,19 +88,136 @@ task.spawn(function()
         local myIsland = getgenv().CurrentIslandCache
         local hasAction = false
 
-        if HubConfig.AutoFarmMaxLevel then
-            local data = LP:FindFirstChild("Data")
-            local currentLevel = data and data:FindFirstChild("Level") and data.Level.Value or 1
-            local bestIsland = "Starter"; local bestQuest = "Quest 1: Mobs (Thief)"
-            
-            for _, q in ipairs(QuestProgression) do
-                if currentLevel >= q.MinLevel then bestIsland = q.Island; bestQuest = q.Quest else break end
+        -- Inicializa a memória dos bosses novos na lista como "Pendentes" de checagem
+        getgenv().BossState = getgenv().BossState or {}
+        if HubConfig.AutoBoss then
+            for _, b in ipairs(HubConfig.SelectedBosses) do
+                if not getgenv().BossState[b] then
+                    getgenv().BossState[b] = "PendingCheck"
+                end
             end
-            HubConfig.SelectedQuestIsland = bestIsland
-            HubConfig.SelectedQuest = bestQuest
         end
 
-        if HubConfig.AutoFarmMaxLevel or HubConfig.AutoQuest then
+        -- =========================================================
+        -- PRIORIDADE 1: AUTO SUMMON (Invocação Exclusiva)
+        -- =========================================================
+        if not hasAction and HubConfig.AutoSummon and HubConfig.SelectedSummonBoss ~= "Nenhum" then
+            local sBoss = HubConfig.SelectedSummonBoss
+            local targetIsland = "Boss Island"
+            local bTarget = getValidTarget("Boss", sBoss)
+            
+            if bTarget then
+                if myIsland and targetIsland and myIsland ~= targetIsland then
+                    SmartIslandTeleport(targetIsland)
+                    hasAction = true
+                else
+                    getgenv().FarmTarget = bTarget
+                    hasAction = true
+                end
+            else
+                if myIsland and targetIsland and myIsland ~= targetIsland then
+                    SmartIslandTeleport(targetIsland)
+                    hasAction = true
+                else
+                    getgenv().LastSummonTime = getgenv().LastSummonTime or 0
+                    if tick() - getgenv().LastSummonTime > 5 then 
+                        if SummonBossRemote then
+                            if getgenv().SendToast then getgenv().SendToast("🔮 Invocação", "Invocando: " .. sBoss, 3) end
+                            SummonBossRemote:FireServer(sBoss)
+                            getgenv().LastSummonTime = tick()
+                            task.wait(2) 
+                        end
+                    end
+                    hasAction = true
+                end
+            end
+        end
+
+        -- =========================================================
+        -- PRIORIDADE 2: AUTO BOSS (SNIPER PASSIVO & VARREDURA)
+        -- =========================================================
+        if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then
+            local bossTargetName = nil
+            local targetIsland = nil
+            
+            -- 2.1 Verifica se já estamos batendo em um Boss da lista (NÃO INTERROMPE)
+            if getgenv().FarmTarget and getgenv().FarmTarget:FindFirstChild("Humanoid") and getgenv().FarmTarget.Humanoid.Health > 0 then
+                local currentTargetName = getgenv().FarmTarget.Name
+                for _, b in ipairs(HubConfig.SelectedBosses) do
+                    if currentTargetName:find(b) or currentTargetName:find(b:gsub("Boss", "")) then
+                        bossTargetName = b
+                        targetIsland = myIsland
+                        break
+                    end
+                end
+            end
+            
+            -- 2.2 Procura alvos válidos na Memória
+            if not bossTargetName then
+                -- Prioridade para os que o Chat avisou que estão Vivos
+                for _, b in ipairs(HubConfig.SelectedBosses) do
+                    if getgenv().BossState[b] == "Alive" then
+                        bossTargetName = b
+                        targetIsland = getIslandByTarget("Boss", b)
+                        break
+                    end
+                end
+                -- Se não tiver vivo confirmado, faz a checagem inicial dos Pendentes
+                if not bossTargetName then
+                    for _, b in ipairs(HubConfig.SelectedBosses) do
+                        if getgenv().BossState[b] == "PendingCheck" then
+                            bossTargetName = b
+                            targetIsland = getIslandByTarget("Boss", b)
+                            break
+                        end
+                    end
+                end
+            end
+            
+            -- 2.3 Ação de Caça
+            if bossTargetName and targetIsland then
+                local bTarget = nil
+                if myIsland == targetIsland then
+                    bTarget = getValidTarget("Boss", bossTargetName)
+                end
+                
+                if bTarget then
+                    getgenv().BossState[bossTargetName] = "Alive" 
+                    getgenv().FarmTarget = bTarget
+                    getgenv().InteractionTarget = nil
+                    hasAction = true
+                else
+                    if myIsland and targetIsland and myIsland ~= targetIsland then
+                        local success = SmartIslandTeleport(targetIsland)
+                        if success then task.wait(2) end
+                        hasAction = true
+                    else
+                        -- A MÁGICA: Chegou na ilha e o boss não tá lá. Marca como Morto.
+                        -- NOTA: Como não damos "hasAction = true", o script vai ignorar o Boss 
+                        -- e prosseguir para farmar Mobs logo abaixo livremente!
+                        getgenv().BossState[bossTargetName] = "Dead"
+                        getgenv().FarmTarget = nil
+                    end
+                end
+            end
+        end
+
+        -- =========================================================
+        -- PRIORIDADE 3: AUTO LEVEL & AUTO QUEST
+        -- =========================================================
+        if not hasAction and (HubConfig.AutoFarmMaxLevel or HubConfig.AutoQuest) then
+            if HubConfig.AutoFarmMaxLevel then
+                local data = LP:FindFirstChild("Data")
+                local currentLevel = data and data:FindFirstChild("Level") and data.Level.Value or 1
+                local bestIsland = "Starter"; local bestQuest = "Quest 1: Mobs (Thief)"
+                
+                for _, q in ipairs(QuestProgression) do
+                    if currentLevel >= q.MinLevel then bestIsland = q.Island; bestQuest = q.Quest else break end
+                end
+                HubConfig.SelectedQuestIsland = bestIsland
+                HubConfig.SelectedQuest = bestQuest
+            end
+
             if HubConfig.SelectedQuest then
                 local questData = getQuestDataByName(HubConfig.SelectedQuestIsland, HubConfig.SelectedQuest)
                 if questData then
@@ -128,79 +248,14 @@ task.spawn(function()
             end
         end
 
-        if not hasAction and not HubConfig.AutoFarmMaxLevel and not HubConfig.AutoQuest then
+        -- =========================================================
+        -- PRIORIDADE 4: AUTO DUMMY & AUTO MOB MANUAL
+        -- =========================================================
+        if not hasAction then
             if HubConfig.AutoDummy then 
                 getgenv().FarmTarget = getValidTarget("Dummy", "")
                 hasAction = true 
-            end
-
-                if not hasAction and HubConfig.AutoSummon and HubConfig.SelectedSummonBoss ~= "Nenhum" then
-                local sBoss = HubConfig.SelectedSummonBoss
-                local targetIsland = "Boss Island"
-                local bTarget = getValidTarget("Boss", sBoss)
-                
-                if bTarget then
-                    -- Se o boss já tá vivo, o script vai pra cima dele
-                    if myIsland and targetIsland and myIsland ~= targetIsland then
-                        SmartIslandTeleport(targetIsland)
-                        hasAction = true
-                    else
-                        getgenv().FarmTarget = bTarget
-                        hasAction = true
-                    end
-                else
-                    -- Se o boss não tá vivo, o script teleporta pra ilha e invoca!
-                    if myIsland and targetIsland and myIsland ~= targetIsland then
-                        SmartIslandTeleport(targetIsland)
-                        hasAction = true
-                    else
-                        -- Sistema de Cooldown de 5 segundos para não spammar e não gastar itens a mais!
-                        getgenv().LastSummonTime = getgenv().LastSummonTime or 0
-                        if tick() - getgenv().LastSummonTime > 5 then 
-                            if SummonBossRemote then
-                                if getgenv().SendToast then getgenv().SendToast("🔮 Invocação", "Invocando: " .. sBoss, 3) end
-                                SummonBossRemote:FireServer(sBoss)
-                                getgenv().LastSummonTime = tick()
-                                task.wait(2) 
-                            end
-                        end
-                        hasAction = true
-                    end
-                end
-            end
-            
-        if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then 
-                getgenv().CurrentBossIndex = getgenv().CurrentBossIndex or 1
-                if getgenv().CurrentBossIndex > #HubConfig.SelectedBosses then
-                    getgenv().CurrentBossIndex = 1
-                    task.wait(1)
-                end
-                
-                local currentBossName = HubConfig.SelectedBosses[getgenv().CurrentBossIndex]
-                local targetIsland = getIslandByTarget("Boss", currentBossName)
-                
-                local bTarget = nil
-                if myIsland == targetIsland then
-                    bTarget = getValidTarget("Boss", currentBossName)
-                end
-                
-                if bTarget then
-                    getgenv().FarmTarget = bTarget
-                    hasAction = true
-                else
-                    if myIsland and targetIsland and myIsland ~= targetIsland then
-                        local success = SmartIslandTeleport(targetIsland)
-                        if success then task.wait(2) end
-                        hasAction = true
-                    else
-                        getgenv().CurrentBossIndex = getgenv().CurrentBossIndex + 1
-                        getgenv().FarmTarget = nil
-                        hasAction = true
-                    end
-                end
-            end
-            
-            if not hasAction and HubConfig.AutoFarm and HubConfig.SelectedMob ~= "Nenhum" then 
+            elseif HubConfig.AutoFarm and HubConfig.SelectedMob ~= "Nenhum" then 
                 local targetIsland = getIslandByTarget("Mob", HubConfig.SelectedMob)
                 if myIsland and targetIsland and myIsland ~= targetIsland then
                     SmartIslandTeleport(targetIsland); hasAction = true

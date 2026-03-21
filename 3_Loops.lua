@@ -124,11 +124,11 @@ task.spawn(function()
                 end
             end
             
-            if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then 
+        if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then 
                 getgenv().CurrentBossIndex = getgenv().CurrentBossIndex or 1
                 if getgenv().CurrentBossIndex > #HubConfig.SelectedBosses then
                     getgenv().CurrentBossIndex = 1
-                    task.wait(2)
+                    task.wait(1)
                 end
                 
                 local currentBossName = HubConfig.SelectedBosses[getgenv().CurrentBossIndex]
@@ -139,14 +139,30 @@ task.spawn(function()
                     bTarget = getValidTarget("Boss", currentBossName)
                 end
                 
-                if bTarget then
+                local bossProntoParaAtacar = false
+                
+                if bTarget and bTarget:FindFirstChild("HumanoidRootPart") then
+                    local char = LP.Character
+                    local myPos = char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Position
+                    if myPos then
+                        local dist = (myPos - bTarget.HumanoidRootPart.Position).Magnitude
+                        if dist < 4000 then
+                            bossProntoParaAtacar = true
+                            if dist > 800 then
+                                SafeTeleport(bTarget, 5)
+                            end
+                        end
+                    end
+                end
+                
+                if bossProntoParaAtacar then
                     getgenv().FarmTarget = bTarget
                     hasAction = true
                 else
                     if myIsland and targetIsland and myIsland ~= targetIsland then
                         local success = SmartIslandTeleport(targetIsland)
                         if success then
-                            task.wait(2.5) 
+                            task.wait(2) 
                         end
                         hasAction = true
                     else

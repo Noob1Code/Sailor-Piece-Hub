@@ -73,7 +73,7 @@ getgenv().IslandDataMap = {
     ["Academy"] = { Mobs = {"AcademyTeacher"}, Bosses = {} },
     ["Judgement"] = { Mobs = {"Swordsman"}, Bosses = {"YamatoBoss"} },
     ["Soul Society"] = { Mobs = {"Quincy"}, Bosses = {} },
-    ["Boss Island"] = { Mobs = {}, Bosses = {"SaberBoss", "QinShinBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"} },
+    ["Boss Island"] = { Mobs = {}, Bosses = {"SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"} },
     ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"MadokaBoss", "Rimuru"} }
 }
 

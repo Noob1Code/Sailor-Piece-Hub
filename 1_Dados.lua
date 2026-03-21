@@ -32,6 +32,7 @@ getgenv().TraitRerollRemote = nil
 getgenv().RerollSingleStatRemote = nil
 getgenv().HakiArmamentoRemote = nil
 getgenv().HakiObservacaoRemote = nil
+getgenv().SummonBossRemote = nil
 
 pcall(function()
     getgenv().CombatRemote = RS:WaitForChild("CombatSystem"):WaitForChild("Remotes"):WaitForChild("RequestHit")
@@ -46,6 +47,7 @@ pcall(function()
     getgenv().RerollSingleStatRemote = RS:FindFirstChild("RerollSingleStat", true)
     getgenv().HakiArmamentoRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("HakiRemote")
     getgenv().HakiObservacaoRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("ObservationHakiRemote")
+    getgenv().SummonBossRemote = RS:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
 end)
 
 -- DICIONÁRIO DE TELEPORTE
@@ -71,6 +73,7 @@ getgenv().IslandDataMap = {
     ["Academy"] = { Mobs = {"AcademyTeacher"}, Bosses = {} },
     ["Judgement"] = { Mobs = {"Swordsman"}, Bosses = {"YamatoBoss"} },
     ["Soul Society"] = { Mobs = {"Quincy"}, Bosses = {} },
+    ["Boss Island"] = { Mobs = {}, Bosses = {"SaberBoss", "QinShinBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"} },
     ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"MadokaBoss", "Rimuru"} }
 }
 
@@ -102,11 +105,12 @@ getgenv().QuestProgression = {
 
 -- VARIÁVEIS DE CONTROLE (HubConfig)
 getgenv().HubConfig = {
-    FilterOptions = {"Todas", "Starter", "Jungle", "Desert", "Snow", "Shibuya", "Hueco Mundo", "Shinjuku", "Slime", "Academy", "Judgement", "Soul Society", "Eventos (Timed Bosses)"},
+    FilterOptions = {"Todas", "Starter", "Jungle", "Desert", "Snow", "Shibuya", "Hueco Mundo", "Shinjuku", "Slime", "Academy", "Judgement", "Soul Society", "Boss Island", "Eventos (Timed Bosses)"},
     QuestFilterOptions = {"Starter", "Jungle", "Desert", "Snow", "Shibuya", "Hueco Mundo", "Shinjuku", "Slime", "Academy", "Judgement", "Soul Society"},
     SelectedFilter = "Todas",
     AutoFarm = false, SelectedMob = "Nenhum", AvailableMobs = {},
     AutoBoss = false, SelectedBoss = "Nenhum", SelectedBosses = {}, Bosses = {},
+    AutoSummon = false, SelectedSummonBoss = "Nenhum",
     AutoDummy = false, 
     SelectedWeapon = "Nenhuma", AvailableWeapons = {"Nenhuma"},
     AutoQuest = false, SelectedQuestIsland = "Starter", SelectedQuest = nil, AutoFarmMaxLevel = false,
@@ -120,7 +124,7 @@ getgenv().HubConfig = {
     AutoReroll = { Race = false, TargetRace = "Kitsune", Clan = false, TargetClan = "Gojo" },
     AutoTrait = false, AutoStatReroll = false, SelectedStatToReroll = "Damage", StatsToRerollList = {"Damage", "Luck", "Health", "Defense"},
     Islands = {"Starter", "Jungle", "Desert", "Snow", "Sailor", "Shibuya", "HuecoMundo", "Boss", "Dungeon", "Shinjuku", "Slime", "Academy", "Judgement", "SoulSociety"},
-    NPCs = {"GroupRewardNPC", "BossRushShopNPC", "BossRushPortalNPC", "DungeonMerchantNPC", "EnchantNPC", "YujiBuyerNPC", "BlessingNPC", "SlimeCraftNPC", "RimuruMasteryNPC", "SkillTreeNPC", "Katana", "MadokaBuyer", "HakiQuestNPC"},
+    NPCs = {"GroupRewardNPC", "BossRushShopNPC", "BossRushPortalNPC", "DungeonMerchantNPC", "EnchantNPC", "YujiBuyerNPC", "BlessingNPC", "SlimeCraftNPC", "RimuruMasteryNPC", "SkillTreeNPC", "Katana", "MadokaBuyer", "HakiQuestNPC", "SummonBossNPC"},
     HacksNativos = { HakiArmamento = false, HakiObservacao = false, NoShake = false, NoCutscene = false, DisablePvP = false, PuloExtra = false },
     FruitSniper = false
 }

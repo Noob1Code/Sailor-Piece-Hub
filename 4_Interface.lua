@@ -423,6 +423,23 @@ TabCombat:CreateButton("🗑️ Limpar Fila", function()
     if getgenv().SaveSettings then getgenv().SaveSettings() end
 end, Color3.fromRGB(200, 100, 60))
 
+local AllBossesList = {
+    "ThiefBoss", "MonkeyBoss", "DesertBoss", "SnowBoss", 
+    "JinwooBoss", "AlucardBoss", "YujiBoss", "SukunaBoss", 
+    "GojoBoss", "PandaMiniBoss", "AizenBoss", "YamatoBoss"
+}
+
+TabCombat:CreateButton("🌍 Adicionar ALL BOSS na Fila", function()
+    for _, boss in ipairs(AllBossesList) do
+        if not table.find(HubConfig.SelectedBosses, boss) then
+            table.insert(HubConfig.SelectedBosses, boss)
+        end
+    end
+    UpdateBossListLabel()
+    if getgenv().SaveSettings then getgenv().SaveSettings() end
+    if getgenv().SendToast then getgenv().SendToast("All Boss", "Todos os bosses foram adicionados à fila de farm!", 3) end
+end, Color3.fromRGB(150, 40, 180))
+
 TabCombat:CreateToggle("Auto Boss (Fila)", HubConfig.AutoBoss, function(v) HubConfig.AutoBoss = v end)
 TabCombat:CreateToggle("Auto Training Dummy", HubConfig.AutoDummy, function(v) HubConfig.AutoDummy = v end)
 

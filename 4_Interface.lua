@@ -446,7 +446,7 @@ TabCombat:CreateToggle("Auto Training Dummy", HubConfig.AutoDummy, function(v) H
 
 TabCombat:CreateLabel("--------------------------------------------------------")
 TabCombat:CreateLabel("🔮 INVOCAÇÃO DE BOSS (SUMMON)")
-local SummonBossList = {"Nenhum", "SaberBoss", "QinShinBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"}
+local SummonBossList = {"Nenhum", "SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"}
 TabCombat:CreateDropdown("Boss para Invocar", SummonBossList, HubConfig.SelectedSummonBoss or "Nenhum", function(s) HubConfig.SelectedSummonBoss = s end)
 TabCombat:CreateToggle("Auto Invocar e Farmar", HubConfig.AutoSummon, function(v) HubConfig.AutoSummon = v end)
 

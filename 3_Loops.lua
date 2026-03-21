@@ -139,31 +139,13 @@ task.spawn(function()
                     bTarget = getValidTarget("Boss", currentBossName)
                 end
                 
-                local bossProntoParaAtacar = false
-                
-                if bTarget and bTarget:FindFirstChild("HumanoidRootPart") then
-                    local char = LP.Character
-                    local myPos = char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Position
-                    if myPos then
-                        local dist = (myPos - bTarget.HumanoidRootPart.Position).Magnitude
-                        if dist < 4000 then
-                            bossProntoParaAtacar = true
-                            if dist > 800 then
-                                SafeTeleport(bTarget, 5)
-                            end
-                        end
-                    end
-                end
-                
-                if bossProntoParaAtacar then
+                if bTarget then
                     getgenv().FarmTarget = bTarget
                     hasAction = true
                 else
                     if myIsland and targetIsland and myIsland ~= targetIsland then
                         local success = SmartIslandTeleport(targetIsland)
-                        if success then
-                            task.wait(2) 
-                        end
+                        if success then task.wait(2) end
                         hasAction = true
                     else
                         getgenv().CurrentBossIndex = getgenv().CurrentBossIndex + 1

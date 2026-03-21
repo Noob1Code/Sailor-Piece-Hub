@@ -426,7 +426,7 @@ end, Color3.fromRGB(200, 100, 60))
 local AllBossesList = {
     "ThiefBoss", "MonkeyBoss", "DesertBoss", "SnowBoss", 
     "JinwooBoss", "AlucardBoss", "YujiBoss", "SukunaBoss", 
-    "GojoBoss", "PandaMiniBoss", "AizenBoss", "YamatoBoss"
+    "GojoBoss", "PandaMiniBoss", "AizenBoss", "YamatoBoss", "GilgameshBoss"
 }
 
 TabCombat:CreateButton("🌍 Adicionar ALL BOSS na Fila", function()

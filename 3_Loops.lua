@@ -13,7 +13,7 @@ local UseItemRemote = getgenv().UseItemRemote
 local TraitRerollRemote = getgenv().TraitRerollRemote
 local RerollSingleStatRemote = getgenv().RerollSingleStatRemote
 local scriptConnections = getgenv().scriptConnections
-
+local SummonBossRemote = getgenv().SummonBossRemote
 local getCurrentIsland = getgenv().getCurrentIsland
 local getQuestDataByName = getgenv().getQuestDataByName
 local getIslandByTarget = getgenv().getIslandByTarget

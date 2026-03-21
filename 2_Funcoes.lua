@@ -290,6 +290,11 @@ getgenv().isQuestActive = function(questData)
         if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then isMatch = false end
     end
     
+    -- 🚨 TRATAMENTO DE EXCEÇÃO: Erro de digitação do próprio jogo (Swordsman vs Swordsmen)
+    if targetBase == "swordsman" and (uiText:find("swordsmen") or titleText:find("swordsmen")) then
+        isMatch = true
+    end
+    
     if isMatch then
         local curr, max = desc.Text:match("(%d+)/(%d+)")
         if curr and max and tonumber(curr) < tonumber(max) then return true end

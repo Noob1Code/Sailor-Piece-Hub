@@ -47,7 +47,7 @@ pcall(function()
     getgenv().RerollSingleStatRemote = RS:FindFirstChild("RerollSingleStat", true)
     getgenv().HakiArmamentoRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("HakiRemote")
     getgenv().HakiObservacaoRemote = RS:WaitForChild("RemoteEvents"):WaitForChild("ObservationHakiRemote")
-    getgenv().SummonBossRemote = RS:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
+    getgenv().SummonBossRemote = RS:FindFirstChild("RequestSummonBoss", true) or RS:WaitForChild("Remotes"):WaitForChild("RequestSummonBoss")
 end)
 
 -- DICIONÁRIO DE TELEPORTE

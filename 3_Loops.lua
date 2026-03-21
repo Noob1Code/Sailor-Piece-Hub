@@ -88,8 +88,17 @@ task.spawn(function()
         local myIsland = getgenv().CurrentIslandCache
         local hasAction = false
 
-        -- Inicializa a memória dos bosses novos na lista como "Pendentes" de checagem
+        -- Detecta se o jogador ligou o AutoBoss AGORA para forçar uma nova varredura em todas as ilhas
         getgenv().BossState = getgenv().BossState or {}
+        if HubConfig.AutoBoss and not getgenv().WasAutoBossOn then
+            for _, b in ipairs(HubConfig.SelectedBosses) do
+                getgenv().BossState[b] = "PendingCheck"
+            end
+            if getgenv().SendToast then getgenv().SendToast("🔍 Varredura", "Iniciando checagem de Bosses...", 3) end
+        end
+        getgenv().WasAutoBossOn = HubConfig.AutoBoss
+
+        -- Adiciona bosses novos à memória caso o AutoBoss já esteja ligado e você adicione mais um na lista
         if HubConfig.AutoBoss then
             for _, b in ipairs(HubConfig.SelectedBosses) do
                 if not getgenv().BossState[b] then
@@ -140,7 +149,7 @@ task.spawn(function()
             local bossTargetName = nil
             local targetIsland = nil
             
-            -- 2.1 Verifica se já estamos batendo em um Boss da lista (NÃO INTERROMPE)
+            -- 2.1 Verifica se já estamos batendo em um Boss da lista
             if getgenv().FarmTarget and getgenv().FarmTarget:FindFirstChild("Humanoid") and getgenv().FarmTarget.Humanoid.Health > 0 then
                 local currentTargetName = getgenv().FarmTarget.Name
                 for _, b in ipairs(HubConfig.SelectedBosses) do
@@ -154,7 +163,6 @@ task.spawn(function()
             
             -- 2.2 Procura alvos válidos na Memória
             if not bossTargetName then
-                -- Prioridade para os que o Chat avisou que estão Vivos
                 for _, b in ipairs(HubConfig.SelectedBosses) do
                     if getgenv().BossState[b] == "Alive" then
                         bossTargetName = b
@@ -162,7 +170,6 @@ task.spawn(function()
                         break
                     end
                 end
-                -- Se não tiver vivo confirmado, faz a checagem inicial dos Pendentes
                 if not bossTargetName then
                     for _, b in ipairs(HubConfig.SelectedBosses) do
                         if getgenv().BossState[b] == "PendingCheck" then
@@ -174,29 +181,38 @@ task.spawn(function()
                 end
             end
             
-            -- 2.3 Ação de Caça
+            -- 2.3 Ação de Caça (Agora 100% blindada)
             if bossTargetName and targetIsland then
-                local bTarget = nil
-                if myIsland == targetIsland then
-                    bTarget = getValidTarget("Boss", bossTargetName)
-                end
+                local bTarget = getValidTarget("Boss", bossTargetName)
                 
                 if bTarget then
                     getgenv().BossState[bossTargetName] = "Alive" 
+                    getgenv().BossPatience = 0 
                     getgenv().FarmTarget = bTarget
                     getgenv().InteractionTarget = nil
                     hasAction = true
                 else
                     if myIsland and targetIsland and myIsland ~= targetIsland then
                         local success = SmartIslandTeleport(targetIsland)
-                        if success then task.wait(2) end
+                        if success then task.wait(3) end
                         hasAction = true
                     else
-                        -- A MÁGICA: Chegou na ilha e o boss não tá lá. Marca como Morto.
-                        -- NOTA: Como não damos "hasAction = true", o script vai ignorar o Boss 
-                        -- e prosseguir para farmar Mobs logo abaixo livremente!
-                        getgenv().BossState[bossTargetName] = "Dead"
-                        getgenv().FarmTarget = nil
+                        -- Chegou na ilha e não viu o boss ainda. Fica parado com Paciência Tática!
+                        getgenv().BossPatience = (getgenv().BossPatience or 0) + 1
+                        
+                        -- Se for chamado pelo Chat (certeza que tá vivo), espera 10s. Se for só varredura, espera 4s.
+                        local maxPatience = (getgenv().BossState[bossTargetName] == "Alive") and 10 or 4
+                        
+                        if getgenv().BossPatience > maxPatience then
+                            -- Fim da paciência. O Boss realmente está morto.
+                            getgenv().BossState[bossTargetName] = "Dead"
+                            getgenv().BossPatience = 0
+                            getgenv().FarmTarget = nil
+                        else
+                            -- Mantém o hasAction = true para travar o script na ilha e ficar aguardando!
+                            getgenv().FarmTarget = nil
+                            hasAction = true 
+                        end
                     end
                 end
             end

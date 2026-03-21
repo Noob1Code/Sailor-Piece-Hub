@@ -90,31 +90,29 @@ task.spawn(function()
             end
             
             if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then 
-                local bossDeAcao = nil
-                local alvoDoBoss = nil
-            
-                -- 1. Varre a fila inteira procurando o primeiro boss que esteja VIVO e RENDERIZADO no mapa
-                for _, bossName in ipairs(HubConfig.SelectedBosses) do
-                    local bTarget = getValidTarget("Boss", bossName)
-                    if bTarget then
-                        bossDeAcao = bossName
-                        alvoDoBoss = bTarget
-                        break -- Achou um vivo, para de procurar
-                    end
+                getgenv().CurrentBossIndex = getgenv().CurrentBossIndex or 1
+                if getgenv().CurrentBossIndex > #HubConfig.SelectedBosses then
+                    getgenv().CurrentBossIndex = 1
                 end
-            
-                -- 2. Se achou um boss vivo, decide se precisa teleportar ou atacar
-                if bossDeAcao and alvoDoBoss then
-                    local targetIsland = getIslandByTarget("Boss", bossDeAcao)
-                    
-                    -- Confere se a nossa ilha atual é diferente da ilha do Boss
-                    if myIsland and targetIsland and targetIsland ~= "Eventos (Timed Bosses)" and myIsland ~= targetIsland then
-                        -- Vai teleportar! (A função SmartIslandTeleport já chama o AutoSaveSpawn internamente)
-                        SmartIslandTeleport(targetIsland) 
+                
+                local currentBossName = HubConfig.SelectedBosses[getgenv().CurrentBossIndex]
+                local targetIsland = getIslandByTarget("Boss", currentBossName)
+                
+                local bTarget = getValidTarget("Boss", currentBossName)
+                
+                if bTarget then
+                    getgenv().FarmTarget = bTarget
+                    hasAction = true
+                else
+                    if myIsland and targetIsland and myIsland ~= targetIsland then
+                        local success = SmartIslandTeleport(targetIsland)
+                        if success then
+                            task.wait(2) 
+                        end
                         hasAction = true
                     else
-                        -- Já estamos na ilha certa (ou o teleporte já acabou). Vai para cima!
-                        getgenv().FarmTarget = alvoDoBoss
+                        getgenv().CurrentBossIndex = getgenv().CurrentBossIndex + 1
+                        getgenv().FarmTarget = nil
                         hasAction = true
                     end
                 end

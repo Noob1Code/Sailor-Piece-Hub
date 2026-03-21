@@ -68,9 +68,9 @@ getgenv().IslandDataMap = {
     ["Shinjuku"] = { Mobs = {"Curse", "StrongSorcerer"}, Bosses = {} },
     ["Slime"] = { Mobs = {"Slime"}, Bosses = {} },
     ["Academy"] = { Mobs = {"AcademyTeacher"}, Bosses = {} },
-    ["Judgement"] = { Mobs = {}, Bosses = {} },
-    ["Soul Society"] = { Mobs = {"Swordsman", "Quincy"}, Bosses = {} },
-    ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"GojoBoss", "SukunaBoss", "YujiBoss", "JinwooBoss", "AizenBoss", "YamatoBoss", "AlucardBoss", "MadokaBoss", "Rimuru"} }
+    ["Judgement"] = { Mobs = {"Swordsman"}, Bosses = {} },
+    ["Soul Society"] = { Mobs = {, "Quincy"}, Bosses = {} },
+    ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"MadokaBoss", "Rimuru"} }
 }
 
 getgenv().QuestDataMap = {

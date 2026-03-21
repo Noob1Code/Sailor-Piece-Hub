@@ -444,6 +444,12 @@ TabCombat:CreateToggle("Auto Boss (Fila)", HubConfig.AutoBoss, function(v) HubCo
 TabCombat:CreateToggle("Auto Training Dummy", HubConfig.AutoDummy, function(v) HubConfig.AutoDummy = v end)
 
 TabCombat:CreateLabel("--------------------------------------------------------")
+TabCombat:CreateLabel("🔮 INVOCAÇÃO DE BOSS (SUMMON)")
+local SummonBossList = {"Nenhum", "SaberBoss", "QinShinBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"}
+TabCombat:CreateDropdown("Boss para Invocar", SummonBossList, HubConfig.SelectedSummonBoss or "Nenhum", function(s) HubConfig.SelectedSummonBoss = s end)
+TabCombat:CreateToggle("Auto Invocar e Farmar", HubConfig.AutoSummon, function(v) HubConfig.AutoSummon = v end)
+
+TabCombat:CreateLabel("--------------------------------------------------------")
 TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE COMBATE E MOVIMENTO")
 TabCombat:CreateTextBox("Velocidade do Voo (Padrão 150, Menor=Lento)", HubConfig.TweenSpeed, function(v) HubConfig.TweenSpeed = tonumber(v) or 150; if getgenv().SaveSettings then getgenv().SaveSettings() end end)
 TabCombat:CreateDropdown("Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, HubConfig.AttackPosition, function(s) HubConfig.AttackPosition = s end)

@@ -88,7 +88,8 @@ getgenv().QuestDataMap = {
     ["Slime"] = {{Name = "Quest 14: Mobs (Slime)", NPC = "QuestNPC14", Target = "Slime", Type = "Mob"}},
     ["Academy"] = {{Name = "Quest 15: Mobs (Teacher)", NPC = "QuestNPC15", Target = "AcademyTeacher", Type = "Mob"}},
     ["Judgement"] = {{Name = "Quest 16: Mobs", NPC = "QuestNPC16", Target = "Nenhum", Type = "Mob"}},
-    ["Soul Society"] = {{Name = "Quest 17: Mobs", NPC = "QuestNPC17", Target = "Swordsman", Type = "Mob"}}
+    ["Soul Society"] = {{Name = "Quest 17: Mobs", NPC = "QuestNPC17", Target = "Swordsman", Type = "Mob"}},
+    ["Boss Island"] = {{Name = "Âncora de Ilha", NPC = "SummonBossNPC", Target = "Nenhum", Type = "Mob"}}
 }
 
 getgenv().QuestProgression = {

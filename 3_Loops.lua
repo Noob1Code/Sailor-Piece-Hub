@@ -109,9 +109,15 @@ task.spawn(function()
                         SmartIslandTeleport(targetIsland)
                         hasAction = true
                     else
-                        if SummonBossRemote then
-                            SummonBossRemote:FireServer(sBoss)
-                            task.wait(1.5) -- Pausa de segurança pra dar tempo do boss aparecer no mundo
+                        -- Sistema de Cooldown de 5 segundos para não spammar e não gastar itens a mais!
+                        getgenv().LastSummonTime = getgenv().LastSummonTime or 0
+                        if tick() - getgenv().LastSummonTime > 5 then 
+                            if SummonBossRemote then
+                                if getgenv().SendToast then getgenv().SendToast("🔮 Invocação", "Invocando: " .. sBoss, 3) end
+                                SummonBossRemote:FireServer(sBoss)
+                                getgenv().LastSummonTime = tick()
+                                task.wait(2) 
+                            end
                         end
                         hasAction = true
                     end

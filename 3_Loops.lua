@@ -40,42 +40,47 @@ local function MonitorarChat(mensagem)
     if not HubConfig.AutoBoss or #HubConfig.SelectedBosses == 0 then return end
     
     local msg = string.lower(mensagem)
+    local msgNoSpaces = msg:gsub("%s+", "") -- Remove espaços para evitar bugs com nomes compostos
     
     if msg:find("spawned") then
         for _, bossName in ipairs(HubConfig.SelectedBosses) do
-            local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", ""))
-            if msg:find(baseName) then
+            local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
+            if msgNoSpaces:find(baseName) then
                 getgenv().BossState[bossName] = "Alive"
+                getgenv().BossPatience = 0 -- Reseta a paciência na hora
                 if getgenv().SendToast then
                     getgenv().SendToast("🚨 Boss Sniper", bossName .. " spawnou! Interceptando...", 4)
                 end
             end
         end
     elseif msg:find("defeated") then
-        -- Se alguém matar o boss, atualiza a memória para evitar viagem perdida
         for _, bossName in ipairs(HubConfig.SelectedBosses) do
-            local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", ""))
-            if msg:find(baseName) then
+            local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
+            if msgNoSpaces:find(baseName) then
                 getgenv().BossState[bossName] = "Dead"
+                getgenv().BossPatience = 0
             end
         end
     end
 end
 
+-- Removido o if/else que bugava a leitura. Agora ele conecta nos dois forçadamente igual no script de teste!
 pcall(function()
     local TextChatService = game:GetService("TextChatService")
-    if TextChatService and TextChatService.Version == Enum.ChatVersion.TextChatService then
+    if TextChatService then
         table.insert(scriptConnections, TextChatService.MessageReceived:Connect(function(textChatMessage)
             if textChatMessage and textChatMessage.Text then MonitorarChat(textChatMessage.Text) end
         end))
-    else
-        local RS = game:GetService("ReplicatedStorage")
-        local defaultChat = RS:FindFirstChild("DefaultChatSystemChatEvents")
-        if defaultChat and defaultChat:FindFirstChild("OnMessageDoneFiltering") then
-            table.insert(scriptConnections, defaultChat.OnMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
-                if messageData and messageData.Message then MonitorarChat(messageData.Message) end
-            end))
-        end
+    end
+end)
+
+pcall(function()
+    local RS = game:GetService("ReplicatedStorage")
+    local defaultChat = RS:FindFirstChild("DefaultChatSystemChatEvents")
+    if defaultChat and defaultChat:FindFirstChild("OnMessageDoneFiltering") then
+        table.insert(scriptConnections, defaultChat.OnMessageDoneFiltering.OnClientEvent:Connect(function(messageData)
+            if messageData and messageData.Message then MonitorarChat(messageData.Message) end
+        end))
     end
 end)
 
@@ -88,7 +93,7 @@ task.spawn(function()
         local myIsland = getgenv().CurrentIslandCache
         local hasAction = false
 
-        -- Detecta se o jogador ligou o AutoBoss AGORA para forçar uma nova varredura em todas as ilhas
+        -- Detecta se o jogador ligou o AutoBoss AGORA para forçar uma nova varredura
         getgenv().BossState = getgenv().BossState or {}
         if HubConfig.AutoBoss and not getgenv().WasAutoBossOn then
             for _, b in ipairs(HubConfig.SelectedBosses) do
@@ -98,7 +103,6 @@ task.spawn(function()
         end
         getgenv().WasAutoBossOn = HubConfig.AutoBoss
 
-        -- Adiciona bosses novos à memória caso o AutoBoss já esteja ligado e você adicione mais um na lista
         if HubConfig.AutoBoss then
             for _, b in ipairs(HubConfig.SelectedBosses) do
                 if not getgenv().BossState[b] then
@@ -149,7 +153,6 @@ task.spawn(function()
             local bossTargetName = nil
             local targetIsland = nil
             
-            -- 2.1 Verifica se já estamos batendo em um Boss da lista
             if getgenv().FarmTarget and getgenv().FarmTarget:FindFirstChild("Humanoid") and getgenv().FarmTarget.Humanoid.Health > 0 then
                 local currentTargetName = getgenv().FarmTarget.Name
                 for _, b in ipairs(HubConfig.SelectedBosses) do
@@ -161,7 +164,6 @@ task.spawn(function()
                 end
             end
             
-            -- 2.2 Procura alvos válidos na Memória
             if not bossTargetName then
                 for _, b in ipairs(HubConfig.SelectedBosses) do
                     if getgenv().BossState[b] == "Alive" then
@@ -181,7 +183,6 @@ task.spawn(function()
                 end
             end
             
-            -- 2.3 Ação de Caça (Agora 100% blindada)
             if bossTargetName and targetIsland then
                 local bTarget = getValidTarget("Boss", bossTargetName)
                 
@@ -197,19 +198,15 @@ task.spawn(function()
                         if success then task.wait(3) end
                         hasAction = true
                     else
-                        -- Chegou na ilha e não viu o boss ainda. Fica parado com Paciência Tática!
                         getgenv().BossPatience = (getgenv().BossPatience or 0) + 1
                         
-                        -- Se for chamado pelo Chat (certeza que tá vivo), espera 10s. Se for só varredura, espera 4s.
                         local maxPatience = (getgenv().BossState[bossTargetName] == "Alive") and 10 or 4
                         
                         if getgenv().BossPatience > maxPatience then
-                            -- Fim da paciência. O Boss realmente está morto.
                             getgenv().BossState[bossTargetName] = "Dead"
                             getgenv().BossPatience = 0
                             getgenv().FarmTarget = nil
                         else
-                            -- Mantém o hasAction = true para travar o script na ilha e ficar aguardando!
                             getgenv().FarmTarget = nil
                             hasAction = true 
                         end
@@ -421,7 +418,6 @@ task.spawn(function()
                     if currentClan and currentClan ~= HubConfig.AutoReroll.TargetClan then UseItemRemote:FireServer("Use", "Clan Reroll", 1, false) else HubConfig.AutoReroll.Clan = false end
                 end
                 
-                -- Usa a variável configurada na interface (Padrão: 1)
                 local amount = HubConfig.ChestOpenAmount or 1
                 
                 if HubConfig.AutoOpenChests.Common then UseItemRemote:FireServer("Use", "Common Chest", amount, false) task.wait(0.2) end

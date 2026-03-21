@@ -88,6 +88,35 @@ task.spawn(function()
                 getgenv().FarmTarget = getValidTarget("Dummy", "")
                 hasAction = true 
             end
+
+                if not hasAction and HubConfig.AutoSummon and HubConfig.SelectedSummonBoss ~= "Nenhum" then
+                local sBoss = HubConfig.SelectedSummonBoss
+                local targetIsland = "Boss Island"
+                local bTarget = getValidTarget("Boss", sBoss)
+                
+                if bTarget then
+                    -- Se o boss já tá vivo, o script vai pra cima dele
+                    if myIsland and targetIsland and myIsland ~= targetIsland then
+                        SmartIslandTeleport(targetIsland)
+                        hasAction = true
+                    else
+                        getgenv().FarmTarget = bTarget
+                        hasAction = true
+                    end
+                else
+                    -- Se o boss não tá vivo, o script teleporta pra ilha e invoca!
+                    if myIsland and targetIsland and myIsland ~= targetIsland then
+                        SmartIslandTeleport(targetIsland)
+                        hasAction = true
+                    else
+                        if SummonBossRemote then
+                            SummonBossRemote:FireServer(sBoss)
+                            task.wait(1.5) -- Pausa de segurança pra dar tempo do boss aparecer no mundo
+                        end
+                        hasAction = true
+                    end
+                end
+            end
             
             if not hasAction and HubConfig.AutoBoss and #HubConfig.SelectedBosses > 0 then 
                 getgenv().CurrentBossIndex = getgenv().CurrentBossIndex or 1

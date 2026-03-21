@@ -63,13 +63,14 @@ getgenv().IslandDataMap = {
     ["Jungle"] = { Mobs = {"Monkey"}, Bosses = {"MonkeyBoss"} },
     ["Desert"] = { Mobs = {"DesertBandit"}, Bosses = {"DesertBoss"} },
     ["Snow"] = { Mobs = {"FrostRogue"}, Bosses = {"SnowBoss"} },
-    ["Shibuya"] = { Mobs = {"Sorcerer"}, Bosses = {"PandaMiniBoss"} }, 
-    ["Hueco Mundo"] = { Mobs = {"Hollow"}, Bosses = {} },
+    ["Sailor"] = { Mobs = {}, Bosses = {"JinwooBoss", "AlucardBoss"} }, 
+    ["Shibuya"] = { Mobs = {"Sorcerer"}, Bosses = {"PandaMiniBoss", "YujiBoss", "SukunaBoss", "GojoBoss"} },
+    ["Hueco Mundo"] = { Mobs = {"Hollow"}, Bosses = {"AizenBoss"} },
     ["Shinjuku"] = { Mobs = {"Curse", "StrongSorcerer"}, Bosses = {} },
     ["Slime"] = { Mobs = {"Slime"}, Bosses = {} },
     ["Academy"] = { Mobs = {"AcademyTeacher"}, Bosses = {} },
-    ["Judgement"] = { Mobs = {"Swordsman"}, Bosses = {} },
-    ["Soul Society"] = { Mobs = {, "Quincy"}, Bosses = {} },
+    ["Judgement"] = { Mobs = {"Swordsman"}, Bosses = {"YamatoBoss"} },
+    ["Soul Society"] = { Mobs = {"Quincy"}, Bosses = {} },
     ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"MadokaBoss", "Rimuru"} }
 }
 

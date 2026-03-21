@@ -147,19 +147,17 @@ local ConfigFileName = ConfigFolderName .. "/SailorPiece_Config.json"
 getgenv().SaveSettings = function()
     pcall(function()
         if not isfolder(ConfigFolderName) then makefolder(ConfigFolderName) end
-        
         local DataToSave = {
-            AutoFarm = HubConfig.AutoFarm, SelectedMob = HubConfig.SelectedMob,
-            AutoBoss = HubConfig.AutoBoss, SelectedBoss = HubConfig.SelectedBoss, SelectedBosses = HubConfig.SelectedBosses,
-            AutoDummy = HubConfig.AutoDummy, SelectedWeapon = HubConfig.SelectedWeapon,
-            AutoQuest = HubConfig.AutoQuest, SelectedQuestIsland = HubConfig.SelectedQuestIsland, AutoFarmMaxLevel = HubConfig.AutoFarmMaxLevel,
-            Distance = HubConfig.Distance, TweenSpeed = HubConfig.TweenSpeed, AttackPosition = HubConfig.AttackPosition,
-            AutoCollect = HubConfig.AutoCollect, AutoGroupReward = HubConfig.AutoGroupReward,
-            AutoStats = HubConfig.AutoStats, SelectedStats = HubConfig.SelectedStats,
-            SuperSpeed = HubConfig.SuperSpeed, InfJump = HubConfig.InfJump,
-            AutoOpenChests = HubConfig.AutoOpenChests, ChestOpenAmount = HubConfig.ChestOpenAmount,
-            AutoReroll = HubConfig.AutoReroll,
-            HacksNativos = HubConfig.HacksNativos, FruitSniper = HubConfig.FruitSniper
+            SelectedWeapon = HubConfig.SelectedWeapon,
+            Distance = HubConfig.Distance, 
+            TweenSpeed = HubConfig.TweenSpeed, 
+            AttackPosition = HubConfig.AttackPosition,
+            SelectedMob = HubConfig.SelectedMob,
+            SelectedBoss = HubConfig.SelectedBoss, 
+            SelectedBosses = HubConfig.SelectedBosses,
+            SelectedSummonBoss = HubConfig.SelectedSummonBoss,
+            SelectedQuestIsland = HubConfig.SelectedQuestIsland,
+            HacksNativos = HubConfig.HacksNativos
         }
         
         local JSONData = getgenv().HttpService:JSONEncode(DataToSave)

@@ -57,6 +57,7 @@ function Library.new(title)
     self.ContentContainer = Instance.new("Frame"); self.ContentContainer.Size = UDim2.new(1, -150, 1, -40); self.ContentContainer.Position = UDim2.new(0, 150, 0, 40); self.ContentContainer.BackgroundTransparency = 1; self.ContentContainer.Parent = self.MainFrame
 
     local function doCleanup()
+        if getgenv().SaveSettings then getgenv().SaveSettings() end  
         getgenv().isRunning = false 
         for _, conn in ipairs(scriptConnections) do if conn then conn:Disconnect() end end
         pcall(function()
@@ -67,7 +68,7 @@ function Library.new(title)
         end)
         if self.ScreenGui then self.ScreenGui:Destroy() end
     end
-    _G.ComunidadeHub_Cleanup = doCleanup 
+    _G.ComunidadeHub_Cleanup = doCleanup
 
     local CloseBtn = Instance.new("TextButton"); CloseBtn.Size = UDim2.new(0, 30, 0, 30); CloseBtn.Position = UDim2.new(1, -35, 0.5, -15); CloseBtn.BackgroundTransparency = 1; CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80); CloseBtn.Text = "X"; CloseBtn.Font = Enum.Font.GothamBold; CloseBtn.Parent = TitleBar
     CloseBtn.MouseButton1Click:Connect(doCleanup)

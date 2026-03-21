@@ -128,12 +128,16 @@ task.spawn(function()
                 getgenv().CurrentBossIndex = getgenv().CurrentBossIndex or 1
                 if getgenv().CurrentBossIndex > #HubConfig.SelectedBosses then
                     getgenv().CurrentBossIndex = 1
+                    task.wait(2)
                 end
                 
                 local currentBossName = HubConfig.SelectedBosses[getgenv().CurrentBossIndex]
                 local targetIsland = getIslandByTarget("Boss", currentBossName)
                 
-                local bTarget = getValidTarget("Boss", currentBossName)
+                local bTarget = nil
+                if myIsland == targetIsland then
+                    bTarget = getValidTarget("Boss", currentBossName)
+                end
                 
                 if bTarget then
                     getgenv().FarmTarget = bTarget
@@ -142,7 +146,7 @@ task.spawn(function()
                     if myIsland and targetIsland and myIsland ~= targetIsland then
                         local success = SmartIslandTeleport(targetIsland)
                         if success then
-                            task.wait(2) 
+                            task.wait(2.5) 
                         end
                         hasAction = true
                     else

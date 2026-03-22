@@ -31,7 +31,6 @@ local Theme = {
 function Interface.new(Config, FSM, Constants)
     local self = setmetatable({}, Interface)
     
-    -- Injeção de Dependências
     self.Config = Config
     self.FSM = FSM
     self.Constants = Constants
@@ -383,7 +382,7 @@ function Interface:CreateTab(name, icon)
 end
 
 -- =====================================================================
--- 🚀 CONSTRUÇÃO PRINCIPAL DA INTERFACE (Apenas na chamada do Bootstrapper)
+-- 🚀 CONSTRUÇÃO PRINCIPAL DA INTERFACE
 -- =====================================================================
 function Interface:BuildUI()
     local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or LP:WaitForChild("PlayerGui")
@@ -475,7 +474,6 @@ function Interface:BuildUI()
     -- 🧩 MONTAGEM DAS ABAS E CONEXÕES
     -- ==========================================
     
-    -- Funções Auxiliares utilizando os Constants
     local function GetMobsFromConstants(island)
         local list = {"Nenhum", "Todos"}
         if island == "Todas" then
@@ -593,7 +591,7 @@ function Interface:BuildUI()
     TabMisc:CreateToggle("Haki da Observação", self.Config.HacksNativos.HakiObservacao, function(v) self.Config.HacksNativos.HakiObservacao = v end)
     TabMisc:CreateToggle("No Cutscene", self.Config.HacksNativos.NoCutscene, function(v) self.Config.HacksNativos.NoCutscene = v end)
 
-    self:Notify("Hub Injetado", "Arquitetura OOP Premium construída com sucesso!", 4)
+    self:Notify("Hub Atualizado", "Todas as lógicas de spawn e 720 studs ativadas!", 4)
 end
 
 return Interface

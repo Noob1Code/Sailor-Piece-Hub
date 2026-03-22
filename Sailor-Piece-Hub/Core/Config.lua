@@ -12,6 +12,7 @@ local Config = {
     -- 🌍 CONTROLE DE MAPA E SPAWN
     -- ==========================================
     CurrentSpawnIsland = "Nenhuma", -- Evita setar spawn múltiplas vezes
+    SelectedIslandFilter = "Todas", -- Guarda o filtro atual da UI para a lógica "Todos"
     
     -- ==========================================
     -- ⚔️ COMBATE & MOVIMENTO
@@ -100,22 +101,17 @@ local Config = {
 local ConfigFolderName = "ComunidadeHub"
 local ConfigFileName = ConfigFolderName .. "/SailorPiece_Config.json"
 
--- Método para salvar as configurações
 function Config:Save()
     pcall(function()
-        -- Verifica se o executor suporta file system
         if not isfolder or not writefile then return end
+        if not isfolder(ConfigFolderName) then makefolder(ConfigFolderName) end
         
-        if not isfolder(ConfigFolderName) then 
-            makefolder(ConfigFolderName) 
-        end
-        
-        -- Monta a tabela apenas com o que precisa ser salvo
         local DataToSave = {
             SelectedWeapon = self.SelectedWeapon,
             Distance = self.Distance,
             TweenSpeed = self.TweenSpeed,
             AttackPosition = self.AttackPosition,
+            SelectedIslandFilter = self.SelectedIslandFilter,
             SelectedMob = self.SelectedMob,
             SelectedBoss = self.SelectedBoss,
             SelectedBosses = self.SelectedBosses,
@@ -132,22 +128,16 @@ function Config:Save()
     end)
 end
 
--- Método para carregar as configurações
 function Config:Load()
     pcall(function()
         if isfile and readfile and isfile(ConfigFileName) then
             local JSONData = readfile(ConfigFileName)
             local DecodedData = HttpService:JSONDecode(JSONData)
-            
             if type(DecodedData) == "table" then
                 for key, value in pairs(DecodedData) do
-                    -- Aplica apenas se a chave existir no Config padrão
                     if self[key] ~= nil then
                         if type(value) == "table" and type(self[key]) == "table" then
-                            -- Mescla sub-tabelas (ex: HacksNativos, AutoCollect)
-                            for subKey, subValue in pairs(value) do 
-                                self[key][subKey] = subValue 
-                            end
+                            for subKey, subValue in pairs(value) do self[key][subKey] = subValue end
                         else
                             self[key] = value
                         end
@@ -158,8 +148,5 @@ function Config:Load()
     end)
 end
 
--- Carrega os dados salvos automaticamente na inicialização do módulo
 Config:Load()
-
--- Retorna a tabela limpa para quem fizer o require
 return Config

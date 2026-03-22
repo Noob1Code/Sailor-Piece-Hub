@@ -10,7 +10,7 @@ end
 -- 2. Sistema Avançado de Carregamento de Módulos (Require remoto)
 local function requireModule(path)
     -- URL base do repositório (ajuste se mudar o nome do repo/branch)
-    local baseUrl = "https://raw.githubusercontent.com/Noob1Code/Sailor-Piece-Hub/refs/heads/main/"
+    local baseUrl = "https://raw.githubusercontent.com/Noob1Code/Sailor-Piece-Hub/refs/heads/main/Sailor-Piece-Hub/"
     local url = baseUrl .. path .. ".lua"
     
     local success, result = pcall(function()

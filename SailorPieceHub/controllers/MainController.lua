@@ -1,14 +1,10 @@
--- =========================================================================
--- 🧠 MainController
--- =========================================================================
-
 local StateManager = Import("core/StateManager")
 local LoopController = Import("controllers/LoopController")
 local TargetService = Import("modules/TargetService")
 local CombatService = Import("modules/CombatService")
 local AutoFarmService = Import("modules/AutoFarmService")
+local BossService = Import("modules/BossService")
 
--- 🔥 INTERFACE DESCOMENTADA AQUI!
 local UIController = Import("ui/UIController")
 local UILibrary = Import("ui/UILibrary")
 
@@ -20,16 +16,16 @@ function MainController.new()
     print("⏳ MainController: Iniciando injeção de dependências...")
 
     self._stateManager = StateManager.new({
-        AutoFarm = false, SelectedMob = "Nenhum", AttackPosition = "Atrás", Distance = 5, TweenSpeed = 150
+        AutoFarm = false, SelectedMob = "Nenhum", 
+        AutoBoss = false, SelectedBosses = {}, SelectedSummonBoss = "Nenhum", AutoSummon = false,
+        AttackPosition = "Atrás", Distance = 5, TweenSpeed = 150
     })
 
     self._loopController = LoopController.new()
     self._targetService = TargetService.new()
     self._combatService = CombatService.new(self._stateManager)
-    
     self._autoFarmService = AutoFarmService.new(self._stateManager, self._targetService, self._combatService)
-
-    -- 🔥 INSTANCIANDO A INTERFACE AQUI!
+    self._bossService = BossService.new(self._stateManager, self._targetService, self._combatService) -- 🔥 INSTANCIADO!
     self._uiController = UIController.new(self._stateManager)
 
     return self
@@ -39,13 +35,18 @@ function MainController:Init()
     print("🚀 MainController: Conectando módulos e iniciando o sistema...")
     
     self._autoFarmService:Start()
+    self._bossService:Start()
+
     self._loopController:RegisterFastTask(function(deltaTime)
         self._autoFarmService:Update()
+        self._bossService:FastUpdate()
+    end)
+
+    self._loopController:RegisterSlowTask(function()
+        self._bossService:SlowUpdate()
     end)
 
     self._loopController:Start()
-    
-    -- 🔥 DESENHANDO A INTERFACE NA TELA AQUI!
     self._uiController:Build(UILibrary)
 
     print("✅ Hub Carregado com Sucesso! Arquitetura Modular Ativa.")
@@ -55,8 +56,8 @@ function MainController:Destroy()
     print("🛑 MainController: Desligando sistema...")
     self._loopController:Destroy()
     self._autoFarmService:Stop()
+    self._bossService:Stop()
     self._stateManager:Destroy()
-    -- 🔥 DESTRUINDO A INTERFACE AO FECHAR
     self._uiController:Destroy()
 end
 

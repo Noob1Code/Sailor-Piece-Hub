@@ -9,7 +9,6 @@ local Remotes = Import("core/Remotes")
 local BossService = {}
 BossService.__index = BossService
 
--- Mapeamento estático para remover a dependência de globais (1_Dados)
 local BossIslands = {
     ["ThiefBoss"] = "Starter", ["MonkeyBoss"] = "Jungle", ["DesertBoss"] = "Desert",
     ["SnowBoss"] = "Snow", ["JinwooBoss"] = "Sailor", ["AlucardBoss"] = "Sailor",
@@ -25,19 +24,15 @@ function BossService.new(stateManager, targetService, combatService)
         _target = targetService,
         _combat = combatService,
         _isActive = false,
-        _bossStateCache = {}, -- Guarda "Alive", "Dead", "PendingCheck"
+        _bossStateCache = {}, 
         _chatConnections = {},
         _lastTeleportTime = 0,
         _lastSummonTime = 0,
         _patience = 0,
-        _currentBossTargetName = nil -- O nome do boss que decidimos focar
+        _currentBossTargetName = nil 
     }, BossService)
     return self
 end
-
--- =========================================================================
--- MONITORAMENTO (BOSS SNIPER)
--- =========================================================================
 
 function BossService:_monitorChat(mensagem)
     if not self._state:Get("AutoBoss") then return end
@@ -52,8 +47,6 @@ function BossService:_monitorChat(mensagem)
             if msgNoSpaces:find(baseName) then
                 self._bossStateCache[bossName] = "Alive"
                 self._patience = 0
-                -- Exemplo de uso de notificação se a UI estivesse pronta:
-                -- self._state:Set("Notify", {Title="🚨 Boss Sniper", Text=bossName.." spawnou!"})
             end
         end
     elseif msg:find("defeated") then
@@ -72,9 +65,8 @@ function BossService:Start()
     self._bossStateCache = {}
     print("👑 BossService: Monitoramento iniciado.")
 
-    -- Conecta no novo sistema de chat do Roblox
     pcall(function()
-        local TextChatService = GameServices.HttpService:GetService("TextChatService")
+        local TextChatService = game:GetService("TextChatService")
         if TextChatService then
             local conn = TextChatService.MessageReceived:Connect(function(msg)
                 if msg and msg.Text then self:_monitorChat(msg.Text) end
@@ -83,7 +75,6 @@ function BossService:Start()
         end
     end)
 
-    -- Conecta no sistema de chat legado
     pcall(function()
         local defaultChat = GameServices.ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
         if defaultChat and defaultChat:FindFirstChild("OnMessageDoneFiltering") then
@@ -99,14 +90,12 @@ function BossService:Stop()
     self._isActive = false
     self._target:ClearTarget()
     self._currentBossTargetName = nil
+    self._combat:ResetMovement()
+    
     for _, conn in ipairs(self._chatConnections) do conn:Disconnect() end
     table.clear(self._chatConnections)
     print("🛑 BossService: Parado.")
 end
-
--- =========================================================================
--- LÓGICA DE DECISÃO (Cérebro - Roda a cada 1 segundo)
--- =========================================================================
 
 function BossService:SlowUpdate()
     if not self._isActive then return end
@@ -114,13 +103,10 @@ function BossService:SlowUpdate()
     local isAutoSummon = self._state:Get("AutoSummon")
     local isAutoBoss = self._state:Get("AutoBoss")
 
-    -- 1. PRIORIDADE: AUTO SUMMON
     if isAutoSummon then
         local summonBoss = self._state:Get("SelectedSummonBoss")
         if summonBoss and summonBoss ~= "Nenhum" then
             self._currentBossTargetName = summonBoss
-            
-            -- Se não achamos o boss no mapa, tentamos teleportar e invocar
             if not self._target:FindNearestBoss(summonBoss) then
                 if tick() - self._lastTeleportTime > 5 then
                     if Remotes.TeleportRemote then Remotes.TeleportRemote:FireServer("Boss") end
@@ -132,21 +118,18 @@ function BossService:SlowUpdate()
                     self._lastSummonTime = tick()
                 end
             end
-            return -- Bloqueia a fila normal se o Summon estiver ligado
+            return 
         end
     end
 
-    -- 2. PRIORIDADE: FILA DE BOSSES
     if isAutoBoss then
         local queue = self._state:Get("SelectedBosses") or {}
         local decidedBoss = nil
 
-        -- Procura primeiro os que temos certeza que estão vivos (Sniper)
         for _, b in ipairs(queue) do
             if self._bossStateCache[b] == "Alive" then decidedBoss = b; break end
         end
 
-        -- Se não tiver nenhum "Alive", assume PendingCheck no primeiro da fila
         if not decidedBoss and #queue > 0 then
             for _, b in ipairs(queue) do
                 if self._bossStateCache[b] ~= "Dead" then 
@@ -159,7 +142,6 @@ function BossService:SlowUpdate()
 
         self._currentBossTargetName = decidedBoss
 
-        -- Se decidimos um Boss, gerencia a paciência e teleporte
         if decidedBoss and not self._target:FindNearestBoss(decidedBoss) then
             local targetIsland = BossIslands[decidedBoss]
             if targetIsland and tick() - self._lastTeleportTime > 5 then
@@ -167,7 +149,6 @@ function BossService:SlowUpdate()
                 self._lastTeleportTime = tick()
             end
 
-            -- Sistema de Paciência: Se não achou na ilha após X segundos, marca como morto
             self._patience = self._patience + 1
             local maxPatience = (self._bossStateCache[decidedBoss] == "Alive") and 10 or 4
             
@@ -177,7 +158,7 @@ function BossService:SlowUpdate()
                 self._currentBossTargetName = nil
             end
         else
-            self._patience = 0 -- Achou o boss, reseta paciência
+            self._patience = 0
         end
         return
     end
@@ -185,18 +166,19 @@ function BossService:SlowUpdate()
     self._currentBossTargetName = nil
 end
 
--- =========================================================================
--- LÓGICA DE AÇÃO (Músculos - Roda a cada frame)
--- =========================================================================
-
 function BossService:FastUpdate()
-    if not self._isActive or not self._currentBossTargetName then return end
+    if not self._isActive or not self._currentBossTargetName then 
+        self._combat:ResetMovement()
+        return 
+    end
 
     local boss = self._target:FindNearestBoss(self._currentBossTargetName)
     
     if boss then
         self._combat:MoveTo(boss)
         self._combat:Attack(boss)
+    else
+        self._combat:ResetMovement()
     end
 end
 

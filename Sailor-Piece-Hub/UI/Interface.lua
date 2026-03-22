@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎨 UI/Interface.lua
--- Responsabilidade: Montar UI e ligar callbacks ao Config/CombatService.
+-- Responsabilidade: Ligar o utilizador ao Config e ao FSM sem poluir.
 -- =====================================================================
 local Interface = {}
 Interface.__index = Interface
@@ -193,7 +193,6 @@ function Interface:BuildUI()
     self.NotifyFrame = Instance.new("Frame"); self.NotifyFrame.Size = UDim2.new(0, 220, 1, -20); self.NotifyFrame.Position = UDim2.new(1, -240, 0, 10); self.NotifyFrame.BackgroundTransparency = 1; self.NotifyFrame.Parent = self.ScreenGui
     local NotifyLayout = Instance.new("UIListLayout"); NotifyLayout.Parent = self.NotifyFrame; NotifyLayout.SortOrder = Enum.SortOrder.LayoutOrder; NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom; NotifyLayout.Padding = UDim.new(0, 10)
 
-    -- Exportar Notificações para o Escopo Global (Para o FSM usar)
     _G.SendToast = function(title, text, time) self:Notify(title, text, time) end
 
     -- ==========================================
@@ -223,21 +222,16 @@ function Interface:BuildUI()
         return w
     end
 
-    -- DASHBOARD
     local TabDash = self:CreateTab("Dashboard", "📊")
     TabDash:CreateLabel("INFORMAÇÕES DO JOGADOR")
     local InfoRace = TabDash:CreateLabel("Raça: Carregando..."); local InfoClan = TabDash:CreateLabel("Clã: Carregando...")
-    local InfoDamage = TabDash:CreateLabel("Bônus: Carregando..."); local InfoPity = TabDash:CreateLabel("Sorte: Carregando...")
     task.spawn(function()
         while self.Config.IsRunning and task.wait(1) do pcall(function()
             InfoRace.Text = "Raça: " .. tostring(LP:GetAttribute("CurrentRace") or "Humano") .. " (+" .. tostring(LP:GetAttribute("RaceExtraJumps") or 0) .. " Pulos)"
             InfoClan.Text = "Clã: " .. tostring(LP:GetAttribute("CurrentClan") or "Nenhum")
-            InfoDamage.Text = "Melee [" .. tostring(LP:GetAttribute("RaceMeleeDamage") or 0) .. "] | Sword [" .. tostring(LP:GetAttribute("RaceSwordDamage") or 0) .. "]"
-            InfoPity.Text = "Sorte: " .. tostring(LP:GetAttribute("RaceLuckBonus") or 0)
         end) end
     end)
 
-    -- MISSÕES
     local TabMissions = self:CreateTab("Missões", "📜")
     TabMissions:CreateLabel("⚡ MODO AUTO LEVEL MÁXIMO")
     TabMissions:CreateToggle("Auto Farm (Progressão Automática)", self.Config.AutoFarmMaxLevel, function(v) self.Config.AutoFarmMaxLevel = v; if v then self.Config.AutoQuest = false end end)
@@ -247,7 +241,6 @@ function Interface:BuildUI()
     questRef = TabMissions:CreateDropdown("Missão", GetQuests(self.Config.SelectedQuestIsland), self.Config.SelectedQuest, function(s) self.Config.SelectedQuest = s end)
     TabMissions:CreateToggle("Auto Quest (Manual)", self.Config.AutoQuest, function(v) self.Config.AutoQuest = v; if v then self.Config.AutoFarmMaxLevel = false end end)
 
-    -- COMBATE
     local TabCombat = self:CreateTab("Combate", "⚔️")
     TabCombat:CreateLabel("🔍 SISTEMA DE MAPA")
     local mobRef, bossRef
@@ -274,7 +267,6 @@ function Interface:BuildUI()
     local wpnRef = TabCombat:CreateDropdown("Arma", GetWeapons(), self.Config.SelectedWeapon, function(s) self.Config.SelectedWeapon = s end)
     TabCombat:CreateButton("Atualizar Armas", function() if wpnRef then wpnRef.Refresh(GetWeapons()) end end)
 
-    -- ITENS
     local TabCollect = self:CreateTab("Itens", "🎒")
     TabCollect:CreateToggle("Auto Group Reward", self.Config.AutoGroupReward, function(v) self.Config.AutoGroupReward = v end)
     TabCollect:CreateToggle("Fruit Sniper Instantâneo", self.Config.FruitSniper, function(v) self.Config.FruitSniper = v end)
@@ -283,7 +275,6 @@ function Interface:BuildUI()
     TabCollect:CreateToggle("Coletar Puzzles", self.Config.AutoCollect.Puzzles, function(v) self.Config.AutoCollect.Puzzles = v end)
     TabCollect:CreateToggle("Coletar Baús", self.Config.AutoCollect.Chests, function(v) self.Config.AutoCollect.Chests = v end)
 
-    -- STATUS & ROLETAS
     local TabStats = self:CreateTab("Status", "📈")
     for _, stat in ipairs(self.Constants.StatsList) do
         local isSelected = table.find(self.Config.SelectedStats, stat) ~= nil
@@ -296,23 +287,19 @@ function Interface:BuildUI()
     TabStats:CreateLabel("ROLETAS E BAÚS")
     TabStats:CreateDropdown("Raça Alvo", {"Kitsune", "Mink", "Fishman", "Human", "Skypiean"}, self.Config.AutoReroll.TargetRace, function(s) self.Config.AutoReroll.TargetRace = s end)
     TabStats:CreateToggle("Auto Reroll Raça", self.Config.AutoReroll.Race, function(v) self.Config.AutoReroll.Race = v end)
-    TabStats:CreateToggle("Abrir Baús Lendários", self.Config.AutoOpenChests.Legendary, function(v) self.Config.AutoOpenChests.Legendary = v end)
-    TabStats:CreateToggle("Abrir Baús Míticos", self.Config.AutoOpenChests.Mythical, function(v) self.Config.AutoOpenChests.Mythical = v end)
 
-    -- NATIVOS
     local TabNativos = self:CreateTab("Nativos", "🕵️‍♂️")
-    TabNativos:CreateToggle("Haki do Armamento", self.Config.HacksNativos.HakiArmamento, function(v) self.Config.HacksNativos.HakiArmamento = v; self.CombatService:ToggleHaki("Armamento") end)
-    TabNativos:CreateToggle("Haki da Observação", self.Config.HacksNativos.HakiObservacao, function(v) self.Config.HacksNativos.HakiObservacao = v; self.CombatService:ToggleHaki("Observacao") end)
+    TabNativos:CreateToggle("Haki do Armamento", self.Config.HacksNativos.HakiArmamento, function(v) self.Config.HacksNativos.HakiArmamento = v; if self.CombatService.Remotes.HakiArmamento then self.CombatService.Remotes.HakiArmamento:FireServer("Toggle") end end)
+    TabNativos:CreateToggle("Haki da Observação", self.Config.HacksNativos.HakiObservacao, function(v) self.Config.HacksNativos.HakiObservacao = v; if self.CombatService.Remotes.HakiObservacao then self.CombatService.Remotes.HakiObservacao:FireServer("Toggle") end end)
     TabNativos:CreateToggle("Hack de Pulos Extras", self.Config.HacksNativos.PuloExtra, function(v) self.Config.HacksNativos.PuloExtra = v; if not v then pcall(function() LP:SetAttribute("RaceExtraJumps", 0) end) end end)
     TabNativos:CreateToggle("Remover Tremores", self.Config.HacksNativos.NoShake, function(v) self.Config.HacksNativos.NoShake = v; pcall(function() LP:SetAttribute("DisableScreenShake", v) end) end)
     TabNativos:CreateToggle("Pular Cutscenes", self.Config.HacksNativos.NoCutscene, function(v) self.Config.HacksNativos.NoCutscene = v; pcall(function() LP:SetAttribute("DisableCutscene", v) end) end)
     TabNativos:CreateToggle("Proteção PvP", self.Config.HacksNativos.DisablePvP, function(v) self.Config.HacksNativos.DisablePvP = v; pcall(function() LP:SetAttribute("DisablePvP", v) end) end)
 
-    -- MUNDO
     local TabWorld = self:CreateTab("Mundo", "🌍")
-    TabWorld:CreateDropdown("Viajar Instanteamente", self.Constants.Islands, "Starter", function(s) self.CombatService.Remotes.Teleport:FireServer(self.Constants.TeleportMap[s] or s) end)
+    TabWorld:CreateDropdown("Viajar Instanteamente", self.Constants.Islands, "Starter", function(s) if self.CombatService.Remotes.Teleport then self.CombatService.Remotes.Teleport:FireServer(self.Constants.TeleportMap[s] or s) end end)
 
-    self:Notify("Hub Injetado", "Arquitetura OOP Premium construída com sucesso!", 4)
+    self:Notify("Hub Injetado", "Arquitetura OOP Premium (Dual-Tick) construída com sucesso!", 4)
 end
 
 return Interface

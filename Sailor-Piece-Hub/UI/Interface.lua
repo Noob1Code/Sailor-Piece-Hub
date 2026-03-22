@@ -1,751 +1,764 @@
 -- =====================================================================
--- 🖥️ UI: Interface.lua (Gerenciador Visual e Interação do Usuário)
+-- 🖥️ UI: Interface.lua (REMASTERIZADA PRO UI/UX V2)
 -- =====================================================================
--- Constrói a UI e conecta os botões/toggles diretamente ao módulo Config.
--- Não contém lógica de farm, apenas delega ações para o FSM e Services.
--- =====================================================================
+-- [[ Design Principles: Minimalist Dark, Dynamic Layout, Intuitive UX ]]
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-
 local LP = Players.LocalPlayer
 
 local Interface = {}
 Interface.__index = Interface
 
 -- ==========================================
--- 🏗️ CONSTRUTOR DA INTERFACE
+-- 🎨 PALETA DE CORES E ESTILOS
 -- ==========================================
+local Theme = {
+    Bg = Color3.fromRGB(15, 15, 15),
+    Sidebar = Color3.fromRGB(10, 10, 10),
+    Accent = Color3.fromRGB(30, 160, 255), -- Azul Sailor
+    Element = Color3.fromRGB(25, 25, 25),
+    ElementHover = Color3.fromRGB(35, 35, 35),
+    Text = Color3.fromRGB(240, 240, 240),
+    TextDim = Color3.fromRGB(160, 160, 160),
+    Corner = UDim.new(0, 6)
+}
 
-function Interface.new(Config, FSM, Constants)
+-- ==========================================
+-- 🛠️ INICIALIZAÇÃO
+-- ==========================================
+function Interface.new(Constants, Config)
     local self = setmetatable({}, Interface)
-    
-    self.Config = Config
-    self.FSM = FSM
     self.Constants = Constants
-    self.Tabs = {}
-    self.CurrentTab = nil
-    self._connections = {}
+    self.Config = Config
+    self.ActiveTab = "Dashboard"
+    self.TabFrames = {}
+    self.TabButtons = {}
+    self._Connections = {}
     
-    local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or LP:WaitForChild("PlayerGui")
-    if uiParent:FindFirstChild("ComunidadeHubGUI") then uiParent.ComunidadeHubGUI:Destroy() end
+    -- Inicializa a ScreenGui
+    self:BuildMainFramework()
     
-    self.ScreenGui = Instance.new("ScreenGui")
-    self.ScreenGui.Name = "ComunidadeHubGUI"
-    self.ScreenGui.Parent = uiParent
-    self.ScreenGui.ResetOnSpawn = false
+    -- Constrói as abas organizadas por UX
+    self:BuildDashboardTab()
+    self:BuildCombatTab()
+    self:BuildAutomationTab()
+    self:BuildWorldTab()
+    self:BuildCharacterTab()
+    self:BuildGachaTab()
+    self:BuildSettingsTab()
     
-    self.MainFrame = Instance.new("Frame")
-    self.MainFrame.Size = UDim2.new(0, 540, 0, 460)
-    self.MainFrame.Position = UDim2.new(0.5, -270, 0.5, -230)
-    self.MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
-    self.MainFrame.ClipsDescendants = true
-    self.MainFrame.Parent = self.ScreenGui
-    Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 8)
+    -- Seleciona a aba inicial
+    self:SelectTab("Dashboard")
+    self:HandleInput()
     
-    local TitleBar = Instance.new("TextButton")
-    TitleBar.Size = UDim2.new(1, 0, 0, 40)
-    TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
-    TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TitleBar.Text = "   🌟 Comunidade Hub V3.0 (Modular)"
-    TitleBar.Font = Enum.Font.GothamBold
-    TitleBar.TextSize = 14
-    TitleBar.TextXAlignment = Enum.TextXAlignment.Left
-    TitleBar.Parent = self.MainFrame
-    TitleBar.AutoButtonColor = false
-    Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 8)
-    
-    self:MakeDraggable(TitleBar, self.MainFrame)
-
-    self.TabSelector = Instance.new("ScrollingFrame")
-    self.TabSelector.Size = UDim2.new(0, 150, 1, -40)
-    self.TabSelector.Position = UDim2.new(0, 0, 0, 40)
-    self.TabSelector.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    self.TabSelector.BorderSizePixel = 0
-    self.TabSelector.ScrollBarThickness = 2
-    self.TabSelector.Parent = self.MainFrame
-    Instance.new("UIListLayout", self.TabSelector).Padding = UDim.new(0, 2)
-    
-    self.ContentContainer = Instance.new("Frame")
-    self.ContentContainer.Size = UDim2.new(1, -150, 1, -40)
-    self.ContentContainer.Position = UDim2.new(0, 150, 0, 40)
-    self.ContentContainer.BackgroundTransparency = 1
-    self.ContentContainer.Parent = self.MainFrame
-
-    local CloseBtn = Instance.new("TextButton")
-    CloseBtn.Size = UDim2.new(0, 30, 0, 30)
-    CloseBtn.Position = UDim2.new(1, -35, 0.5, -15)
-    CloseBtn.BackgroundTransparency = 1
-    CloseBtn.TextColor3 = Color3.fromRGB(255, 80, 80)
-    CloseBtn.Text = "X"
-    CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.Parent = TitleBar
-    CloseBtn.MouseButton1Click:Connect(function()
-        if _G.ComunidadeHub_Cleanup then _G.ComunidadeHub_Cleanup() end
-    end)
-
-    local MinBtn = Instance.new("TextButton")
-    MinBtn.Size = UDim2.new(0, 30, 0, 30)
-    MinBtn.Position = UDim2.new(1, -65, 0.5, -15)
-    MinBtn.BackgroundTransparency = 1
-    MinBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    MinBtn.Text = "-"
-    MinBtn.Font = Enum.Font.GothamBold
-    MinBtn.Parent = TitleBar
-    local isMinimized = false
-    MinBtn.MouseButton1Click:Connect(function()
-        isMinimized = not isMinimized
-        MinBtn.Text = isMinimized and "+" or "-"
-        self.MainFrame:TweenSize(isMinimized and UDim2.new(0, 540, 0, 40) or UDim2.new(0, 540, 0, 460), "Out", "Quart", 0.3, true)
-        self.TabSelector.Visible = not isMinimized
-        self.ContentContainer.Visible = not isMinimized
-    end)
-
-    self.NotifyFrame = Instance.new("Frame")
-    self.NotifyFrame.Size = UDim2.new(0, 220, 1, -20)
-    self.NotifyFrame.Position = UDim2.new(1, -240, 0, 10)
-    self.NotifyFrame.BackgroundTransparency = 1
-    self.NotifyFrame.Parent = self.ScreenGui
-    local NotifyLayout = Instance.new("UIListLayout")
-    NotifyLayout.Parent = self.NotifyFrame
-    NotifyLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    NotifyLayout.VerticalAlignment = Enum.VerticalAlignment.Bottom
-    NotifyLayout.Padding = UDim.new(0, 10)
-
-    self:BuildTabs()
-    self:Notify("Hub Inicializado", "Todas as abas foram carregadas com sucesso!", 4)
-
+    print("✅ Interface Sailor Piece Hub (UX V2) carregada!")
     return self
 end
 
 -- ==========================================
--- 🛠️ FUNÇÕES INTERNAS DE UI
+-- 🏗️ ESTRUTURA PRINCIPAL (FRAMEWORK)
 -- ==========================================
+function Interface:BuildMainFramework()
+    -- Proteção contra múltiplas instâncias
+    local old = CoreGui:FindFirstChild("SailorPieceHub_V2")
+    if old then old:Destroy() end
 
-function Interface:MakeDraggable(topbar, frame)
-    local dragging, dragInput, dragStart, startPos
-    topbar.InputBegan:Connect(function(input)
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "SailorPieceHub_V2"
+    self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui.DisplayOrder = 100
+    pcall(function() self.ScreenGui.Parent = CoreGui end)
+    if not self.ScreenGui.Parent then self.ScreenGui.Parent = LP:WaitForChild("PlayerGui") end
+
+    -- Frame Principal (Centralizado)
+    self.MainFrame = Instance.new("Frame")
+    self.MainFrame.Name = "MainFrame"
+    self.MainFrame.Size = UDim2.new(0, 620, 0, 420)
+    self.MainFrame.Position = UDim2.new(0.5, -310, 0.5, -210)
+    self.MainFrame.BackgroundColor3 = Theme.Bg
+    self.MainFrame.BorderSizePixel = 0
+    self.MainFrame.ClipsDescendants = true
+    self.MainFrame.Parent = self.ScreenGui
+    Instance.new("UICorner", self.MainFrame).CornerRadius = Theme.Corner
+    Instance.new("UIStroke", self.MainFrame).Color = Color3.fromRGB(35, 35, 35)
+
+    -- Barra Lateral (Navegação)
+    self.Sidebar = Instance.new("Frame")
+    self.Sidebar.Name = "Sidebar"
+    self.Sidebar.Size = UDim2.new(0, 160, 1, 0)
+    self.Sidebar.BackgroundColor3 = Theme.Sidebar
+    self.Sidebar.BorderSizePixel = 0
+    self.Sidebar.Parent = self.MainFrame
+    Instance.new("UICorner", self.Sidebar).CornerRadius = Theme.Corner
+
+    local sideLayout = Instance.new("UIListLayout", self.Sidebar)
+    sideLayout.Padding = UDim.new(0, 2)
+    sideLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    local sidePadding = Instance.new("UIPadding", self.Sidebar)
+    sidePadding.PaddingTop = UDim.new(0, 10)
+    sidePadding.PaddingBottom = UDim.new(0, 10)
+
+    -- Título no Sidebar
+    local title = Instance.new("TextLabel")
+    title.Size = UDim2.new(0.9, 0, 0, 30)
+    title.BackgroundTransparency = 1
+    title.Text = "Sailor Hub"
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextColor3 = Theme.Accent
+    title.TextXAlignment = Enum.TextXAlignment.Left
+    title.Parent = self.Sidebar
+    Instance.new("UIPadding", title).PaddingLeft = UDim.new(0, 10)
+
+    local subtitle = Instance.new("TextLabel")
+    subtitle.Size = UDim2.new(0.9, 0, 0, 15)
+    subtitle.BackgroundTransparency = 1
+    subtitle.Text = "Piece Edition v2.1"
+    subtitle.Font = Enum.Font.Gotham
+    subtitle.TextSize = 11
+    subtitle.TextColor3 = Theme.TextDim
+    subtitle.TextXAlignment = Enum.TextXAlignment.Left
+    subtitle.Parent = self.Sidebar
+    Instance.new("UIPadding", subtitle).PaddingLeft = UDim.new(0, 10)
+
+    local sep = Instance.new("Frame")
+    sep.Size = UDim2.new(0.9, 0, 0, 1)
+    sep.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    sep.BorderSizePixel = 0
+    sep.Parent = self.Sidebar
+    
+    local gap = Instance.new("Frame"); gap.Size = UDim2.new(1,0,0,10); gap.BackgroundTransparency=1; gap.Parent=self.Sidebar
+
+    -- Conteúdo Principal (Onde as abas ficam)
+    self.ContentFrame = Instance.new("Frame")
+    self.ContentFrame.Name = "ContentFrame"
+    self.ContentFrame.Size = UDim2.new(1, -170, 1, -10)
+    self.ContentFrame.Position = UDim2.new(0, 165, 0, 5)
+    self.ContentFrame.BackgroundTransparency = 1
+    self.ContentFrame.Parent = self.MainFrame
+
+    self:MakeDraggable(self.MainFrame)
+end
+
+-- ==========================================
+-- 🛠️ AUXILIARES DE CONSTRUÇÃO DE UI (BIBLIOTECA INTERNA)
+-- ==========================================
+function Interface:MakeDraggable(frame)
+    local dragInput, dragStart, startPos
+    local function update(input)
+        local delta = input.Position - dragStart
+        frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+    end
+    frame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true; dragStart = input.Position; startPos = frame.Position
-            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragging = false end end)
+            dragStart = input.Position
+            startPos = frame.Position
+            input.Changed:Connect(function() if input.UserInputState == Enum.UserInputState.End then dragInput = nil end end)
         end
     end)
-    topbar.InputChanged:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end
-    end)
-    UserInputService.InputChanged:Connect(function(input)
-        if input == dragInput and dragging then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
+    frame.InputChanged:Connect(function(input) if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then dragInput = input end end)
+    UserInputService.InputChanged:Connect(function(input) if input == dragInput then update(input) end end)
 end
 
-function Interface:Notify(title, text, duration)
-    duration = duration or 3 
-    local Notif = Instance.new("Frame")
-    Notif.Size = UDim2.new(1, 0, 0, 60)
-    Notif.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-    Notif.BackgroundTransparency = 1 
-    Instance.new("UICorner", Notif).CornerRadius = UDim.new(0, 6)
-    Notif.Parent = self.NotifyFrame
+function Interface:CreateTabButton(name, iconId)
+    local btn = Instance.new("TextButton")
+    btn.Name = name .. "TabBtn"
+    btn.Size = UDim2.new(0.9, 0, 0, 32)
+    btn.BackgroundColor3 = Theme.Sidebar
+    btn.BackgroundTransparency = 1
+    btn.BorderSizePixel = 0
+    btn.Text = "" -- Usamos Label/Icon
+    btn.AutoButtonColor = false
+    btn.Parent = self.Sidebar
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+    local icon = Instance.new("ImageLabel")
+    icon.Name = "Icon"
+    icon.Size = UDim2.new(0, 18, 0, 18)
+    icon.Position = UDim2.new(0, 8, 0.5, -9)
+    icon.BackgroundTransparency = 1
+    icon.Image = iconId or "rbxassetid://10723415903" -- Ícone padrão
+    icon.ImageColor3 = Theme.TextDim
+    icon.Parent = btn
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Name = "Title"
+    lbl.Size = UDim2.new(1, -35, 1, 0)
+    lbl.Position = UDim2.new(0, 32, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.Font = Enum.Font.GothamMedium
+    lbl.TextSize = 13
+    lbl.TextColor3 = Theme.TextDim
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = btn
+
+    -- Hover Effect
+    btn.MouseEnter:Connect(function() if self.ActiveTab ~= name then TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 0.5, BackgroundColor3 = Theme.ElementHover}):Play() end end)
+    btn.MouseLeave:Connect(function() if self.ActiveTab ~= name then TweenService:Create(btn, TweenInfo.new(0.2), {BackgroundTransparency = 1, BackgroundColor3 = Theme.Sidebar}):Play() end end)
     
-    local SideBar = Instance.new("Frame")
-    SideBar.Size = UDim2.new(0, 4, 1, 0); SideBar.BackgroundColor3 = Color3.fromRGB(80, 150, 255)
-    SideBar.BorderSizePixel = 0; SideBar.BackgroundTransparency = 1; SideBar.Parent = Notif
-    Instance.new("UICorner", SideBar).CornerRadius = UDim.new(0, 6)
-    
-    local TitleLbl = Instance.new("TextLabel")
-    TitleLbl.Size = UDim2.new(1, -20, 0, 20); TitleLbl.Position = UDim2.new(0, 15, 0, 5)
-    TitleLbl.BackgroundTransparency = 1; TitleLbl.Text = title
-    TitleLbl.TextColor3 = Color3.fromRGB(255, 255, 255); TitleLbl.Font = Enum.Font.GothamBold; TitleLbl.TextSize = 13
-    TitleLbl.TextXAlignment = Enum.TextXAlignment.Left; TitleLbl.Parent = Notif
+    btn.MouseButton1Click:Connect(function() self:SelectTab(name) end)
 
-    local DescLbl = Instance.new("TextLabel")
-    DescLbl.Size = UDim2.new(1, -20, 0, 30); DescLbl.Position = UDim2.new(0, 15, 0, 25)
-    DescLbl.BackgroundTransparency = 1; DescLbl.Text = text
-    DescLbl.TextColor3 = Color3.fromRGB(180, 180, 180); DescLbl.Font = Enum.Font.Gotham; DescLbl.TextSize = 11
-    DescLbl.TextXAlignment = Enum.TextXAlignment.Left; DescLbl.TextWrapped = true; DescLbl.Parent = Notif
-
-    TweenService:Create(Notif, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(SideBar, TweenInfo.new(0.3), {BackgroundTransparency = 0}):Play()
-    TweenService:Create(TitleLbl, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
-    TweenService:Create(DescLbl, TweenInfo.new(0.3), {TextTransparency = 0}):Play()
-
-    task.spawn(function()
-        task.wait(duration)
-        local fadeOut = TweenService:Create(Notif, TweenInfo.new(0.5), {BackgroundTransparency = 1})
-        TweenService:Create(SideBar, TweenInfo.new(0.5), {BackgroundTransparency = 1}):Play()
-        TweenService:Create(TitleLbl, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-        TweenService:Create(DescLbl, TweenInfo.new(0.5), {TextTransparency = 1}):Play()
-        fadeOut:Play()
-        fadeOut.Completed:Wait()
-        Notif:Destroy()
-    end)
+    self.TabButtons[name] = btn
+    return btn
 end
 
-function Interface:CreateTab(name, icon)
-    local Tab = {}
-    Tab.Window = self
+function Interface:CreateContentFrame(name)
+    local frame = Instance.new("ScrollingFrame")
+    frame.Name = name .. "Content"
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundTransparency = 1
+    frame.BorderSizePixel = 0
+    frame.ScrollBarThickness = 2
+    frame.ScrollBarImageColor3 = Theme.Accent
+    frame.Visible = false
+    frame.Parent = self.ContentFrame
     
-    local TabBtn = Instance.new("TextButton")
-    TabBtn.Size = UDim2.new(1, 0, 0, 35); TabBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 25)
-    TabBtn.BorderSizePixel = 0; TabBtn.TextColor3 = Color3.fromRGB(180, 180, 180)
-    TabBtn.Text = "  " .. (icon or "") .. " " .. name; TabBtn.Font = Enum.Font.GothamSemibold
-    TabBtn.TextSize = 13; TabBtn.TextXAlignment = Enum.TextXAlignment.Left; TabBtn.Parent = self.TabSelector
-    TabBtn.AutoButtonColor = false 
+    local layout = Instance.new("UIListLayout", frame)
+    layout.Padding = UDim.new(0, 8)
+    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+
+    local padding = Instance.new("UIPadding", frame)
+    padding.PaddingTop = UDim.new(0, 5)
+    padding.PaddingBottom = UDim.new(0, 5)
+    padding.PaddingRight = UDim.new(0, 5)
+
+    layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        frame.CanvasSize = UDim2.new(0, 0, 0, layout.AbsoluteContentSize.Y + 15)
+    end)
+
+    self.TabFrames[name] = frame
+    return frame
+end
+
+function Interface:SelectTab(name)
+    if not self.TabFrames[name] then return end
     
-    local TabContent = Instance.new("ScrollingFrame")
-    TabContent.Size = UDim2.new(1, -10, 1, -10); TabContent.Position = UDim2.new(0, 5, 0, 5)
-    TabContent.BackgroundTransparency = 1; TabContent.ScrollBarThickness = 2; TabContent.Visible = false
-    TabContent.Parent = self.ContentContainer
+    self.ActiveTab = name
     
-    local ContentLayout = Instance.new("UIListLayout")
-    ContentLayout.Parent = TabContent; ContentLayout.Padding = UDim.new(0, 8) 
-    ContentLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function() 
-        TabContent.CanvasSize = UDim2.new(0, 0, 0, ContentLayout.AbsoluteContentSize.Y + 10) 
-    end)
-
-    TabBtn.MouseEnter:Connect(function()
-        if self.CurrentTab ~= TabContent then TweenService:Create(TabBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(28, 28, 35)}):Play() end
-    end)
-    TabBtn.MouseLeave:Connect(function()
-        if self.CurrentTab ~= TabContent then TweenService:Create(TabBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 25)}):Play() end
-    end)
-
-    TabBtn.MouseButton1Click:Connect(function()
-        for _, tabInfo in pairs(self.Tabs) do 
-            tabInfo.Content.Visible = false
-            TweenService:Create(tabInfo.Button, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(20, 20, 25), TextColor3 = Color3.fromRGB(180, 180, 180)}):Play()
-        end
-        TabContent.Visible = true
-        self.CurrentTab = TabContent
-        TweenService:Create(TabBtn, TweenInfo.new(0.3), {BackgroundColor3 = Color3.fromRGB(45, 100, 255), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play()
-    end)
-
-    if not self.CurrentTab then 
-        TabContent.Visible = true; TabBtn.BackgroundColor3 = Color3.fromRGB(45, 100, 255); TabBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-        self.CurrentTab = TabContent 
+    -- Atualiza Botões (Visual)
+    for tabName, btn in pairs(self.TabButtons) do
+        local isSelected = (tabName == name)
+        TweenService:Create(btn, TweenInfo.new(0.2), {
+            BackgroundTransparency = isSelected and 0 or 1,
+            BackgroundColor3 = isSelected and Theme.Element or Theme.Sidebar
+        }):Play()
+        TweenService:Create(btn.Icon, TweenInfo.new(0.2), {ImageColor3 = isSelected and Theme.Accent or Theme.TextDim}):Play()
+        TweenService:Create(btn.Title, TweenInfo.new(0.2), {TextColor3 = isSelected and Theme.Text or Theme.TextDim}):Play()
     end
-    table.insert(self.Tabs, {Button = TabBtn, Content = TabContent})
-    Tab.Container = TabContent
-
-    function Tab:CreateLabel(text)
-        local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(1, 0, 0, 20); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(150, 150, 180)
-        Label.Text = text; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.GothamBold; Label.TextSize = 12; Label.Parent = self.Container
-        return Label
-    end
-
-    function Tab:CreateButton(text, callback, color)
-        local baseColor = color or Color3.fromRGB(45, 100, 255)
-        local hoverColor = Color3.fromRGB(math.clamp(baseColor.R*255 + 20, 0, 255), math.clamp(baseColor.G*255 + 20, 0, 255), math.clamp(baseColor.B*255 + 20, 0, 255))
-        
-        local Btn = Instance.new("TextButton"); Btn.Size = UDim2.new(1, -5, 0, 32); Btn.BackgroundColor3 = baseColor
-        Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.Text = text; Btn.Font = Enum.Font.GothamSemibold
-        Btn.TextSize = 13; Btn.Parent = self.Container; Btn.AutoButtonColor = false
-        Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4)
-        
-        Btn.MouseEnter:Connect(function() TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = hoverColor}):Play() end)
-        Btn.MouseLeave:Connect(function() TweenService:Create(Btn, TweenInfo.new(0.2), {BackgroundColor3 = baseColor}):Play() end)
-        Btn.MouseButton1Click:Connect(function()
-            TweenService:Create(Btn, TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out, 0, true), {Size = UDim2.new(0.98, -5, 0, 30)}):Play()
-            callback()
-        end)
-        return Btn
-    end
-
-    function Tab:CreateToggle(text, defaultState, callback)
-        local state = defaultState
-        local colorOn, colorOff = Color3.fromRGB(40, 180, 80), Color3.fromRGB(40, 40, 50)
-        local ToggleBtn = Instance.new("TextButton"); ToggleBtn.Size = UDim2.new(1, -5, 0, 32); ToggleBtn.BackgroundColor3 = state and colorOn or colorOff
-        ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255); ToggleBtn.Text = text .. " [" .. (state and "ON" or "OFF") .. "]"
-        ToggleBtn.Font = Enum.Font.GothamSemibold; ToggleBtn.TextSize = 13; ToggleBtn.Parent = self.Container; ToggleBtn.AutoButtonColor = false
-        Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
-        
-        ToggleBtn.MouseEnter:Connect(function()
-            local targetColor = state and Color3.fromRGB(50, 200, 90) or Color3.fromRGB(50, 50, 60)
-            TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = targetColor}):Play()
-        end)
-        ToggleBtn.MouseLeave:Connect(function()
-            TweenService:Create(ToggleBtn, TweenInfo.new(0.2), {BackgroundColor3 = state and colorOn or colorOff}):Play()
-        end)
-        ToggleBtn.MouseButton1Click:Connect(function()
-            state = not state
-            TweenService:Create(ToggleBtn, TweenInfo.new(0.3), {BackgroundColor3 = state and colorOn or colorOff}):Play()
-            ToggleBtn.Text = text .. " [" .. (state and "ON" or "OFF") .. "]"
-            callback(state)
-        end)
-    end
-
-    function Tab:CreateDropdown(title, options, defaultOption, callback)
-        local DropFrame = Instance.new("Frame"); DropFrame.Size = UDim2.new(1, -5, 0, 32); DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40); DropFrame.ClipsDescendants = true; DropFrame.Parent = self.Container
-        Instance.new("UICorner", DropFrame).CornerRadius = UDim.new(0, 4)
-        
-        local MainBtn = Instance.new("TextButton"); MainBtn.Size = UDim2.new(1, 0, 0, 32); MainBtn.BackgroundTransparency = 1; MainBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-        MainBtn.Text = "  " .. title .. ": " .. tostring(defaultOption); MainBtn.Font = Enum.Font.GothamSemibold; MainBtn.TextSize = 12; MainBtn.TextXAlignment = Enum.TextXAlignment.Left; MainBtn.Parent = DropFrame; MainBtn.AutoButtonColor = false
-        
-        local Arrow = Instance.new("TextLabel"); Arrow.Size = UDim2.new(0, 30, 1, 0); Arrow.Position = UDim2.new(1, -30, 0, 0); Arrow.BackgroundTransparency = 1; Arrow.Text = "▼"; Arrow.TextColor3 = Color3.fromRGB(200, 200, 200); Arrow.Font = Enum.Font.GothamBold; Arrow.Parent = MainBtn
-
-        local ListFrame = Instance.new("ScrollingFrame"); ListFrame.Size = UDim2.new(1, 0, 1, -32); ListFrame.Position = UDim2.new(0, 0, 0, 32)
-        ListFrame.BackgroundTransparency = 1; ListFrame.ScrollBarThickness = 2; ListFrame.Parent = DropFrame
-        local ListLayout = Instance.new("UIListLayout"); ListLayout.Parent = ListFrame
-        
-        local isOpen = false
-        MainBtn.MouseButton1Click:Connect(function()
-            isOpen = not isOpen
-            local targetHeight = isOpen and math.min(ListLayout.AbsoluteContentSize.Y + 32, 140) or 32
-            TweenService:Create(DropFrame, TweenInfo.new(0.3, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Size = UDim2.new(1, -5, 0, targetHeight)}):Play()
-            TweenService:Create(Arrow, TweenInfo.new(0.3), {Rotation = isOpen and 180 or 0}):Play()
-            ListFrame.CanvasSize = UDim2.new(0, 0, 0, ListLayout.AbsoluteContentSize.Y)
-        end)
-
-        local function refresh(newOptions)
-            for _, b in pairs(ListFrame:GetChildren()) do if b:IsA("TextButton") then b:Destroy() end end
-            for _, opt in ipairs(newOptions) do
-                local OptBtn = Instance.new("TextButton"); OptBtn.Size = UDim2.new(1, 0, 0, 28); OptBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
-                OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180); OptBtn.Text = "  " .. tostring(opt)
-                OptBtn.Font = Enum.Font.Gotham; OptBtn.TextSize = 12; OptBtn.TextXAlignment = Enum.TextXAlignment.Left; OptBtn.Parent = ListFrame; OptBtn.AutoButtonColor = false
-                
-                OptBtn.MouseEnter:Connect(function() TweenService:Create(OptBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(45, 100, 255), TextColor3 = Color3.fromRGB(255, 255, 255)}):Play() end)
-                OptBtn.MouseLeave:Connect(function() TweenService:Create(OptBtn, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(35, 35, 45), TextColor3 = Color3.fromRGB(180, 180, 180)}):Play() end)
-                OptBtn.MouseButton1Click:Connect(function()
-                    MainBtn.Text = "  " .. title .. ": " .. tostring(opt)
-                    callback(opt)
-                    isOpen = false
-                    TweenService:Create(DropFrame, TweenInfo.new(0.3), {Size = UDim2.new(1, -5, 0, 32)}):Play()
-                    TweenService:Create(Arrow, TweenInfo.new(0.3), {Rotation = 0}):Play()
-                end)
-            end
-        end
-        refresh(options)
-        return { Refresh = refresh }
-    end
-
-    function Tab:CreateTextBox(title, defaultText, callback)
-        local Container = Instance.new("Frame"); Container.Size = UDim2.new(1, -5, 0, 32); Container.BackgroundColor3 = Color3.fromRGB(30, 30, 40); Container.Parent = self.Container
-        Instance.new("UICorner", Container).CornerRadius = UDim.new(0, 4)
-        local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(0.6, 0, 1, 0); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(200, 200, 200); Label.Text = "  " .. title; Label.Font = Enum.Font.GothamSemibold; Label.TextSize = 12; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Parent = Container
-        local TextBox = Instance.new("TextBox"); TextBox.Size = UDim2.new(0.35, -5, 0.8, 0); TextBox.Position = UDim2.new(0.65, 0, 0.1, 0); TextBox.BackgroundColor3 = Color3.fromRGB(20, 20, 25); TextBox.TextColor3 = Color3.fromRGB(255, 255, 255); TextBox.Text = tostring(defaultText); TextBox.Font = Enum.Font.Gotham; TextBox.TextSize = 12; TextBox.Parent = Container
-        Instance.new("UICorner", TextBox).CornerRadius = UDim.new(0, 4)
-        
-        TextBox.Focused:Connect(function() TweenService:Create(TextBox, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(40, 40, 50)}):Play() end)
-        TextBox.FocusLost:Connect(function() 
-            TweenService:Create(TextBox, TweenInfo.new(0.2), {BackgroundColor3 = Color3.fromRGB(20, 20, 25)}):Play()
-            local val = TextBox.Text; if tonumber(val) then callback(tonumber(val)) else callback(val) end 
-        end)
-    end
-
-    return Tab
+    
+    -- Atualiza Frames (Visibilidade)
+    for tabName, frame in pairs(self.TabFrames) do frame.Visible = (tabName == name) end
 end
 
 -- ==========================================
--- 📝 CONSTRUÇÃO DE TODAS AS ABAS
+-- 🧊 ELEMENTOS DE UI PADRÃO (COMPONENTES)
+-- ==========================================
+function Interface:CreateSection(parent, title)
+    local secFrame = Instance.new("Frame")
+    secFrame.Name = title .. "Section"
+    secFrame.Size = UDim2.new(0.96, 0, 0, 30)
+    secFrame.BackgroundTransparency = 1
+    secFrame.Parent = parent
+    
+    local layout = Instance.new("UIListLayout", secFrame)
+    layout.Padding = UDim.new(0, 6)
+    
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, 0, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = title:upper()
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.TextColor3 = Theme.Accent
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = secFrame
+    Instance.new("UIPadding", lbl).PaddingLeft = UDim.new(0, 2)
+
+    local container = Instance.new("Frame")
+    container.Name = "Container"
+    container.Size = UDim2.new(1, 0, 0, 0)
+    container.BackgroundTransparency = 1
+    container.Parent = secFrame
+
+    local cLayout = Instance.new("UIListLayout", container)
+    cLayout.Padding = UDim.new(0, 5)
+
+    cLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+        container.Size = UDim2.new(1, 0, 0, cLayout.AbsoluteContentSize.Y)
+        secFrame.Size = UDim2.new(0.96, 0, 0, cLayout.AbsoluteContentSize.Y + 25)
+    end)
+
+    return container
+end
+
+function Interface:CreateToggle(parent, name, configKey, callback)
+    local configRef = self.Config
+    local keys = string.split(configKey, ".")
+    for i = 1, #keys - 1 do configRef = configRef[keys[i]] end
+    local finalKey = keys[#keys]
+
+    local base = Instance.new("TextButton")
+    base.Name = name .. "Toggle"
+    base.Size = UDim2.new(1, 0, 0, 32)
+    base.BackgroundColor3 = Theme.Element
+    base.Text = ""
+    base.AutoButtonColor = false
+    base.Parent = parent
+    Instance.new("UICorner", base).CornerRadius = Theme.Corner
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -50, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Theme.Text
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = base
+
+    local switch = Instance.new("Frame")
+    switch.Name = "Switch"
+    switch.Size = UDim2.new(0, 36, 0, 18)
+    switch.Position = UDim2.new(1, -46, 0.5, -9)
+    switch.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+    switch.Parent = base
+    Instance.new("UICorner", switch).CornerRadius = UDim.new(1, 0)
+    local stroke = Instance.new("UIStroke", switch); stroke.Color = Color3.fromRGB(50, 50, 50); stroke.Thickness = 1
+
+    local circle = Instance.new("Frame")
+    circle.Name = "Circle"
+    circle.Size = UDim2.new(0, 14, 0, 14)
+    circle.Position = UDim2.new(0, 2, 0.5, -7)
+    circle.BackgroundColor3 = Color3.fromRGB(150, 150, 150)
+    circle.Parent = switch
+    Instance.new("UICorner", circle).CornerRadius = UDim.new(1, 0)
+
+    local function updateVisual(state)
+        TweenService:Create(switch, TweenInfo.new(0.2), {BackgroundColor3 = state and Theme.Accent or Color3.fromRGB(40, 40, 40)}):Play()
+        TweenService:Create(stroke, TweenInfo.new(0.2), {Color = state and Theme.Accent or Color3.fromRGB(50, 50, 50)}):Play()
+        TweenService:Create(circle, TweenInfo.new(0.2), {
+            Position = state and UDim2.new(1, -16, 0.5, -7) or UDim2.new(0, 2, 0.5, -7),
+            BackgroundColor3 = state and Theme.Text or Color3.fromRGB(150, 150, 150)
+        }):Play()
+    end
+
+    updateVisual(configRef[finalKey])
+
+    base.MouseButton1Click:Connect(function()
+        configRef[finalKey] = not configRef[finalKey]
+        updateVisual(configRef[finalKey])
+        if callback then callback(configRef[finalKey]) end
+    end)
+
+    base.MouseEnter:Connect(function() TweenService:Create(base, TweenInfo.new(0.2), {BackgroundColor3 = Theme.ElementHover}):Play() end)
+    base.MouseLeave:Connect(function() TweenService:Create(base, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Element}):Play() end)
+
+    return base, updateVisual
+end
+
+function Interface:CreateDropdown(parent, name, options, configKey, callback)
+    local configRef = self.Config
+    local keys = string.split(configKey, ".")
+    for i = 1, #keys - 1 do configRef = configRef[keys[i]] end
+    local finalKey = keys[#keys]
+
+    local base = Instance.new("Frame")
+    base.Name = name .. "Dropdown"
+    base.Size = UDim2.new(1, 0, 0, 32)
+    base.BackgroundColor3 = Theme.Element
+    base.ClipsDescendants = false -- Importante para a lista aparecer
+    base.Parent = parent
+    Instance.new("UICorner", base).CornerRadius = Theme.Corner
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, 0, 1, 0)
+    btn.BackgroundTransparency = 1
+    btn.Text = ""
+    btn.Parent = base
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -70, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = name
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 13
+    lbl.TextColor3 = Theme.TextDim
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = base
+
+    local selectedLbl = Instance.new("TextLabel")
+    selectedLbl.Size = UDim2.new(1, -10, 1, 0)
+    selectedLbl.BackgroundTransparency = 1
+    selectedLbl.Text = tostring(configRef[finalKey]) or "Nenhum"
+    selectedLbl.Font = Enum.Font.GothamMedium
+    selectedLbl.TextSize = 13
+    selectedLbl.TextColor3 = Theme.Text
+    selectedLbl.TextXAlignment = Enum.TextXAlignment.Right
+    selectedLbl.Parent = base
+    Instance.new("UIPadding", selectedLbl).PaddingRight = UDim.new(0, 25)
+
+    local arrow = Instance.new("ImageLabel")
+    arrow.Size = UDim2.new(0, 14, 0, 14)
+    arrow.Position = UDim2.new(1, -22, 0.5, -7)
+    arrow.BackgroundTransparency = 1
+    arrow.Image = "rbxassetid://10723415903" -- Ícone Seta Baixo
+    arrow.ImageColor3 = Theme.TextDim
+    arrow.Parent = base
+
+    -- Container da Lista
+    local listFrame = Instance.new("ScrollingFrame")
+    listFrame.Size = UDim2.new(1, 0, 0, 0)
+    listFrame.Position = UDim2.new(0, 0, 1, 2)
+    listFrame.BackgroundColor3 = Theme.Element
+    listFrame.BorderSizePixel = 0
+    listFrame.ScrollBarThickness = 2
+    listFrame.ScrollBarImageColor3 = Theme.Accent
+    listFrame.Visible = false
+    listFrame.ClipsDescendants = true
+    listFrame.ZIndex = 10
+    listFrame.Parent = base
+    Instance.new("UICorner", listFrame).CornerRadius = Theme.Corner
+    Instance.new("UIStroke", listFrame).Color = Color3.fromRGB(40, 40, 40)
+
+    local listLayout = Instance.new("UIListLayout", listFrame)
+    listLayout.Padding = UDim.new(0, 2)
+    Instance.new("UIPadding", listFrame).PaddingTop = UDim.new(0, 2)
+
+    local isOpen = false
+    local function toggleDropdown()
+        isOpen = not isOpen
+        local targetSize = 0
+        if isOpen then targetSize = math.min(#options * 26 + 6, 136) end
+        
+        listFrame.Visible = true
+        TweenService:Create(listFrame, TweenInfo.new(0.2), {Size = UDim2.new(1, 0, 0, targetSize)}):Play()
+        TweenService:Create(arrow, TweenInfo.new(0.2), {Rotation = isOpen and 180 or 0}):Play()
+        
+        task.delay(0.2, function() if not isOpen then listFrame.Visible = false end end)
+        listFrame.CanvasSize = UDim2.new(0, 0, 0, #options * 26 + 6)
+    end
+
+    local function refreshOptions(newOptions)
+        for _, c in ipairs(listFrame:GetChildren()) do if c:IsA("TextButton") then c:Destroy() end end
+        for _, opt in ipairs(newOptions) do
+            local optBtn = Instance.new("TextButton")
+            optBtn.Size = UDim2.new(0.96, 0, 0, 24)
+            optBtn.BackgroundColor3 = Theme.Element
+            optBtn.BackgroundTransparency = 1
+            optBtn.Text = tostring(opt)
+            optBtn.Font = Enum.Font.Gotham
+            optBtn.TextSize = 12
+            optBtn.TextColor3 = (tostring(opt) == tostring(configRef[finalKey])) and Theme.Text or Theme.TextDim
+            optBtn.Parent = listFrame
+            optBtn.ZIndex = 11
+            Instance.new("UICorner", optBtn).CornerRadius = UDim.new(0, 4)
+
+            optBtn.MouseEnter:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.2), {BackgroundTransparency = 0, BackgroundColor3 = Theme.ElementHover}):Play() end)
+            optBtn.MouseLeave:Connect(function() TweenService:Create(optBtn, TweenInfo.new(0.2), {BackgroundTransparency = 1, BackgroundColor3 = Theme.Element}):Play() end)
+
+            optBtn.MouseButton1Click:Connect(function()
+                configRef[finalKey] = opt
+                selectedLbl.Text = tostring(opt)
+                toggleDropdown() -- Fecha
+                if callback then callback(opt) end
+                -- Atualiza cor do texto dos itens
+                for _, other in ipairs(listFrame:GetChildren()) do if other:IsA("TextButton") then other.TextColor3 = (other.Text == selectedLbl.Text) and Theme.Text or Theme.TextDim end end
+            end)
+        end
+        if isOpen then listFrame.CanvasSize = UDim2.new(0, 0, 0, #newOptions * 26 + 6) end
+    end
+
+    refreshOptions(options)
+    btn.MouseButton1Click:Connect(toggleDropdown)
+
+    -- Hover do Base
+    base.MouseEnter:Connect(function() TweenService:Create(base, TweenInfo.new(0.2), {BackgroundColor3 = Theme.ElementHover}):Play() end)
+    base.MouseLeave:Connect(function() TweenService:Create(base, TweenInfo.new(0.2), {BackgroundColor3 = Theme.Element}):Play() end)
+
+    return base, refreshOptions
+end
+
+function Interface:CreateButton(parent, name, callback)
+    local base = Instance.new("TextButton")
+    base.Name = name .. "Button"
+    base.Size = UDim2.new(1, 0, 0, 32)
+    base.BackgroundColor3 = Theme.Accent
+    base.Text = name
+    base.Font = Enum.Font.GothamMedium
+    base.TextSize = 13
+    base.TextColor3 = Color3.new(1, 1, 1)
+    base.AutoButtonColor = false
+    base.Parent = parent
+    Instance.new("UICorner", base).CornerRadius = Theme.Corner
+
+    -- Click Animation
+    base.MouseButton1Down:Connect(function() TweenService:Create(base, TweenInfo.new(0.1), {BackgroundTransparency = 0.2}):Play() end)
+    base.MouseButton1Up:Connect(function() TweenService:Create(base, TweenInfo.new(0.1), {BackgroundTransparency = 0}):Play() end)
+    
+    base.MouseButton1Click:Connect(function() if callback then callback() end end)
+
+    return base
+end
+
+-- ==========================================
+-- 🛠️ MONTAGEM DAS ABAS (UX V2)
 -- ==========================================
 
-function Interface:BuildTabs()
-    local c = self.Config
-    local const = self.Constants
+-- Ícones padrão (Assets do Roblox)
+local Icons = {
+    Dashboard = "rbxassetid://10723415903", -- Home
+    Combat = "rbxassetid://10723416110", -- Sword
+    Automation = "rbxassetid://10723416260", -- Settings/Gear (Loop)
+    World = "rbxassetid://10723346953", -- Map
+    Character = "rbxassetid://10723346802", -- User
+    Gacha = "rbxassetid://10723346231", -- Gift
+    Settings = "rbxassetid://10723346452" -- Sliders
+}
+
+-- 1. ABA DASHBOARD (UX: Boas vindas e Status)
+function Interface:BuildDashboardTab()
+    local name = "Dashboard"
+    self:CreateTabButton(name, Icons.Dashboard)
+    local frame = self:CreateContentFrame(name)
     
-    -- Funções Locais de Varredura (Substituem os Antigos getgenv())
-    local function getMobList(filter)
-        local mobs = {"Nenhum", "Todos"}
-        local seen = {}
-        local npcsFolder = Workspace:FindFirstChild("NPCs")
-        if npcsFolder then
-            for _, npc in pairs(npcsFolder:GetChildren()) do
-                if npc:FindFirstChild("Humanoid") and not npc:GetAttribute("IsTrainingDummy") then
-                    local baseName = npc.Name:gsub("%d+", "")
-                    if baseName ~= "" and not seen[baseName] and not baseName:lower():find("boss") then
-                        local addToList = false
-                        if filter == "Todas" or not filter then 
-                            addToList = true 
-                        else
-                            local filterData = const.IslandDataMap[filter]
-                            if filterData and filterData.Mobs then
-                                for _, prefix in ipairs(filterData.Mobs) do if baseName == prefix then addToList = true break end end
-                            end
-                        end
-                        if addToList then seen[baseName] = true; table.insert(mobs, baseName) end
-                    end
-                end
-            end
-        end
-        return mobs
-    end
-
-    local function getBossList(filter)
-        local bosses = {"Nenhum"}
-        if filter == "Todas" or not filter then
-            local allBosses = {"ThiefBoss", "MonkeyBoss", "DesertBoss", "SnowBoss", "PandaMiniBoss", "GojoBoss", "SukunaBoss", "YujiBoss", "JinwooBoss", "AizenBoss", "YamatoBoss", "AlucardBoss", "MadokaBoss", "Rimuru"}
-            for _, b in ipairs(allBosses) do table.insert(bosses, b) end
-        else
-            local filterData = const.IslandDataMap[filter]
-            if filterData and filterData.Bosses then
-                for _, b in ipairs(filterData.Bosses) do table.insert(bosses, b) end
-            end
-        end
-        return bosses
-    end
-
-    local function getWeaponList()
-        local weapons = {"Nenhuma"}
-        local char = LP.Character
-        local backpack = LP:FindFirstChild("Backpack")
-        if backpack then for _, tool in pairs(backpack:GetChildren()) do if tool:IsA("Tool") and not table.find(weapons, tool.Name) then table.insert(weapons, tool.Name) end end end
-        if char then for _, tool in pairs(char:GetChildren()) do if tool:IsA("Tool") and not table.find(weapons, tool.Name) then table.insert(weapons, tool.Name) end end end
-        return weapons
-    end
-
-    -- ==========================================
-    -- 📊 ABA 1: DASHBOARD
-    -- ==========================================
-    local TabDash = self:CreateTab("Dashboard", "📊")
-    TabDash:CreateLabel("INFORMAÇÕES DO JOGADOR")
-    local InfoRace = TabDash:CreateLabel("Raça: Carregando...")
-    local InfoClan = TabDash:CreateLabel("Clã: Carregando...")
-    local InfoDamage = TabDash:CreateLabel("Bônus Melee/Sword: Carregando...")
-    local InfoBoss = TabDash:CreateLabel("Bônus Boss/Crit: Carregando...")
-    local InfoPity = TabDash:CreateLabel("Sorte: Carregando...")
-
-    task.spawn(function()
-        while task.wait(1) do
-            if not c.IsRunning then break end
-            pcall(function()
-                InfoRace.Text = "Raça Atual: " .. tostring(LP:GetAttribute("CurrentRace") or "Humano") .. " (+ " .. tostring(LP:GetAttribute("RaceExtraJumps") or 0) .. " Pulos)"
-                InfoClan.Text = "Clã Atual: " .. tostring(LP:GetAttribute("CurrentClan") or "Nenhum")
-                InfoDamage.Text = "Multiplicadores: Melee [" .. tostring(LP:GetAttribute("RaceMeleeDamage") or 0) .. "] | Sword [" .. tostring(LP:GetAttribute("RaceSwordDamage") or 0) .. "]"
-                InfoBoss.Text = "Bônus em Bosses: Dano [" .. tostring(LP:GetAttribute("BossRush_Damage") or 0) .. "] | Crítico [" .. tostring(LP:GetAttribute("BossRush_CritDamage") or 0) .. "]"
-                InfoPity.Text = "Bônus de Sorte: " .. tostring(LP:GetAttribute("RaceLuckBonus") or 0)
-            end)
-        end
-    end)
-
-    -- ==========================================
-    -- 📜 ABA 2: MISSÕES
-    -- ==========================================
-    local TabMissions = self:CreateTab("Missões", "📜")
-    TabMissions:CreateLabel("⚡ MODO AUTO LEVEL MÁXIMO (1 AO MAX)")
-    TabMissions:CreateToggle("ATIVAR PILOTO AUTOMÁTICO", c.AutoFarmMaxLevel, function(v) 
-        c.AutoFarmMaxLevel = v
-        if v then c.AutoQuest = false end
-        c:Save()
-    end)
-    TabMissions:CreateLabel("--------------------------------------------------------")
-    TabMissions:CreateLabel("🎯 MODO MISSÃO MANUAL (FARM DE ITENS)")
+    local sec = self:CreateSection(frame, "Bem vindo ao Sailor Hub")
     
-    local QuestDrop 
-    TabMissions:CreateDropdown("Escolha a Ilha", const.QuestFilterOptions, c.SelectedQuestIsland, function(s) 
-        c.SelectedQuestIsland = s
-        local questsDisp = {}
-        if const.QuestDataMap[s] then
-            for _, q in ipairs(const.QuestDataMap[s]) do table.insert(questsDisp, q.Name) end
-        end
-        if #questsDisp == 0 then table.insert(questsDisp, "Nenhuma Quest") end
-        if QuestDrop then QuestDrop.Refresh(questsDisp) end
-        c:Save()
+    local welcome = Instance.new("TextLabel")
+    welcome.Size = UDim2.new(1, 0, 0, 60)
+    welcome.BackgroundTransparency = 1
+    welcome.Text = "Olá, " .. LP.Name .. "!\nConfigure suas automações nas abas laterais.\nO script detecta o level e ilha atuais automaticamente."
+    welcome.Font = Enum.Font.Gotham
+    welcome.TextSize = 13
+    welcome.TextColor3 = Theme.Text
+    welcome.TextWrapped = true
+    welcome.Parent = sec
+
+    local info = Instance.new("TextLabel")
+    info.Size = UDim2.new(1, 0, 0, 20)
+    info.BackgroundTransparency = 1
+    info.Text = "Status: Executando ✔️ | Versão: POO V2.1"
+    info.Font = Enum.Font.GothamMedium
+    info.TextSize = 12
+    info.TextColor3 = Theme.TextDim
+    info.Parent = sec
+    
+    local discordBtn = self:CreateButton(sec, "Entrar no Discord (Copiar Link)", function()
+        if setclipboard then setclipboard("https://discord.gg/seulink") print("Link copiado!") end
+    end)
+    discordBtn.BackgroundColor3 = Color3.fromRGB(88, 101, 242) -- Discord Blue
+end
+
+-- 2. ABA COMBATE (UX: Matar coisas)
+function Interface:BuildCombatTab()
+    local name = "Combat"
+    self:CreateTabButton(name, Icons.Combat)
+    local frame = self:CreateContentFrame(name)
+    
+    -- Seção 1: Farm Principal
+    local secFarm = self:CreateSection(frame, "Auto Farm NPCs")
+    
+    -- UX Dinâmico: Se ativar MaxLevel, desativa AutoQuest
+    local autoQuestToggle, updateAutoQuest
+    local autoMaxToggle, updateAutoMax
+    
+    autoQuestToggle, updateAutoQuest = self:CreateToggle(secFarm, "Auto Quest (Ilha Selecionada)", "AutoQuest", function(state)
+        if state and self.Config.AutoFarmMaxLevel then self.Config.AutoFarmMaxLevel = false; updateAutoMax(false) end
     end)
     
-    local initialQuests = {"Nenhuma Quest"}
-    if const.QuestDataMap[c.SelectedQuestIsland] then
-        initialQuests = {}
-        for _, q in ipairs(const.QuestDataMap[c.SelectedQuestIsland]) do table.insert(initialQuests, q.Name) end
-    end
-    
-    QuestDrop = TabMissions:CreateDropdown("Escolha a Missão", initialQuests, c.SelectedQuest or initialQuests[1], function(s) 
-        c.SelectedQuest = s
-        c:Save()
+    autoMaxToggle, updateAutoMax = self:CreateToggle(secFarm, "Auto Farm Max Level (Pula Ilhas)", "AutoFarmMaxLevel", function(state)
+        if state and self.Config.AutoQuest then self.Config.AutoQuest = false; updateAutoQuest(false) end
     end)
     
-    TabMissions:CreateToggle("FARM MISSÃO SELECIONADA", c.AutoQuest, function(v) 
-        c.AutoQuest = v
-        if v then c.AutoFarmMaxLevel = false end
-        c:Save()
-    end)
+    self:CreateToggle(secFarm, "Auto Dummy (Treinamento Melee)", "AutoDummy")
 
-    -- ==========================================
-    -- ⚔️ ABA 3: COMBATE
-    -- ==========================================
-    local TabCombat = self:CreateTab("Combate", "⚔️")
-    TabCombat:CreateLabel("🔍 SISTEMA DE MAPA")
-    
-    local MobDrop, BossDrop
-    
-    TabCombat:CreateButton("Varrer Ilha (Atualizar NPCs Existentes)", function() 
-        local availableMobs = getMobList(c.SelectedFilter)
-        if MobDrop then MobDrop.Refresh(availableMobs) end 
-    end)
+    -- Configuração de Ilha/Quest manual
+    local islandList = self.Constants.QuestFilterOptions or {}
+    local questList = {} -- Populado dinamicamente
 
-    TabCombat:CreateDropdown("Filtrar por Área", const.FilterOptions, "Todas", function(ilhaName)
-        c.SelectedFilter = ilhaName
-        local mobsDisp = getMobList(ilhaName)
-        local bossesDisp = getBossList(ilhaName)
-        if MobDrop then MobDrop.Refresh(mobsDisp) end
-        if BossDrop then BossDrop.Refresh(bossesDisp) end
+    local questDropdown, refreshQuests
+    
+    self:CreateDropdown(secFarm, "Selecionar Ilha", islandList, "SelectedQuestIsland", function(ilha)
+        local novasQuests = {}
+        if self.Constants.QuestDataMap[ilha] then for _, q in ipairs(self.Constants.QuestDataMap[ilha]) do table.insert(novasQuests, q.Name) end end
+        if #novasQuests == 0 then table.insert(novasQuests, "Nenhuma") end
+        refreshQuests(novasQuests) -- Atualiza o próximo dropdown
+        self.Config.SelectedQuest = novasQuests[1] -- Reseta quest selecionada
     end)
     
-    MobDrop = TabCombat:CreateDropdown("Inimigo", getMobList("Todas"), c.SelectedMob, function(s) 
-        c.SelectedMob = s; c:Save() 
-    end)
+    questDropdown, refreshQuests = self:CreateDropdown(secFarm, "Selecionar Missão", {"Selecione a Ilha"}, "SelectedQuest")
+
+    -- Seção 2: Farm Bosses
+    local secBoss = self:CreateSection(frame, "Auto Farm Bosses")
+    self:CreateToggle(secBoss, "Ativar Auto Bosses Selecionados", "AutoBoss")
     
-    TabCombat:CreateToggle("Auto Farm Mobs", c.AutoFarm, function(v) 
-        c.AutoFarm = v; c:Save() 
-    end)
-
-    TabCombat:CreateLabel("--------------------------------------------------------")
-    TabCombat:CreateLabel("👑 FILA DE BOSSES")
-    local BossListLabel = TabCombat:CreateLabel("Fila: Nenhuma")
-
-    local function UpdateBossListLabel()
-        if #c.SelectedBosses == 0 then
-            BossListLabel.Text = "Fila: Nenhuma"
-        else
-            BossListLabel.Text = "Fila: " .. table.concat(c.SelectedBosses, ", ")
-        end
-    end
+    -- Lista de Chefes (Multi-seleção simplificada)
+    local bossList = self.Constants.IslandDataMap and self.Constants.IslandDataMap["Starter"] and self.Constants.IslandDataMap["Starter"].Bosses or {}
+    -- UX: Como é difícil fazer multiselect nativo em dropdown simples, listamos os Bosses
+    local currentBossesFrame = Instance.new("Frame")
+    currentBossesFrame.Size = UDim2.new(1,0,0,20)
+    currentBossesFrame.BackgroundTransparency = 1
+    currentBossesFrame.Parent = secBoss
     
-    TabCombat:CreateTextBox("Buscar Boss (Digite e Enter)", "", function(text)
-        local currentBosses = getBossList(c.SelectedFilter)
-        local filtered = {}
-        text = tostring(text):lower()
-        if text == "" then 
-            filtered = currentBosses 
-        else 
-            table.insert(filtered, "Nenhum")
-            for _, boss in ipairs(currentBosses) do 
-                if boss ~= "Nenhum" and boss:lower():find(text) then table.insert(filtered, boss) end 
-            end 
-        end
-        if BossDrop then BossDrop.Refresh(filtered) end
+    local bossesLbl = Instance.new("TextLabel")
+    bossesLbl.Size = UDim2.new(1, -70, 1, 0)
+    bossesLbl.Position = UDim2.new(0, 10, 0, 0)
+    bossesLbl.BackgroundTransparency = 1
+    bossesLbl.Text = "Bosses Ativos: " .. #self.Config.SelectedBosses
+    bossesLbl.Font = Enum.Font.Gotham
+    bossesLbl.TextSize = 13
+    bossesLbl.TextColor3 = Theme.TextDim
+    bossesLbl.TextXAlignment = Enum.TextXAlignment.Left
+    bossesLbl.Parent = currentBossesFrame
+
+    self:CreateButton(secBoss, "Gerenciar Lista de Bosses", function()
+        -- UX: Em um hub completo, abriria um modal. Aqui vamos apenas popular o Config com TODOS para simplificar
+        self.Config.SelectedBosses = bossList
+        bossesLbl.Text = "Bosses Ativos: TODOS"
     end)
 
-    BossDrop = TabCombat:CreateDropdown("Selecionar Boss", getBossList("Todas"), c.SelectedBoss, function(s) 
-        c.SelectedBoss = s; c:Save() 
-    end)
+    -- Seção 3: Configurações de Ataque
+    local secAtk = self:CreateSection(frame, "Configurações de Ataque")
+    self:CreateDropdown(secAtk, "Posição", {"Cima", "Abaixo", "Atrás", "Orbital"}, "AttackPosition")
+    self:CreateDropdown(secAtk, "Arma", {"Nenhuma", "Melee", "Sword", "Fruit"}, "SelectedWeapon")
+end
 
-    TabCombat:CreateButton("➕ Adicionar Boss à Fila", function()
-        if c.SelectedBoss ~= "Nenhum" and not table.find(c.SelectedBosses, c.SelectedBoss) then
-            table.insert(c.SelectedBosses, c.SelectedBoss)
-            UpdateBossListLabel()
-            c:Save()
-        end
-    end, Color3.fromRGB(40, 150, 80))
-
-    TabCombat:CreateButton("➖ Remover Boss da Fila", function()
-        local idx = table.find(c.SelectedBosses, c.SelectedBoss)
-        if idx then
-            table.remove(c.SelectedBosses, idx)
-            UpdateBossListLabel()
-            c:Save()
-        end
-    end, Color3.fromRGB(200, 60, 60))
-
-    TabCombat:CreateButton("🗑️ Limpar Fila", function()
-        c.SelectedBosses = {}
-        UpdateBossListLabel()
-        c:Save()
-    end, Color3.fromRGB(200, 100, 60))
-
-    local AllBossesList = {
-        "ThiefBoss", "MonkeyBoss", "DesertBoss", "SnowBoss", 
-        "JinwooBoss", "AlucardBoss", "YujiBoss", "SukunaBoss", 
-        "GojoBoss", "PandaMiniBoss", "AizenBoss", "YamatoBoss", "GilgameshBoss"
-    }
-
-    TabCombat:CreateButton("🌍 Adicionar ALL BOSS na Fila", function()
-        for _, boss in ipairs(AllBossesList) do
-            if not table.find(c.SelectedBosses, boss) then
-                table.insert(c.SelectedBosses, boss)
-            end
-        end
-        UpdateBossListLabel()
-        c:Save()
-        self:Notify("All Boss", "Todos os bosses adicionados à fila de farm!", 3)
-    end, Color3.fromRGB(150, 40, 180))
-
-    TabCombat:CreateToggle("Auto Boss (Fila)", c.AutoBoss, function(v) c.AutoBoss = v; c:Save() end)
-    TabCombat:CreateToggle("Auto Training Dummy", c.AutoDummy, function(v) c.AutoDummy = v; c:Save() end)
-
-    TabCombat:CreateLabel("--------------------------------------------------------")
-    TabCombat:CreateLabel("🔮 INVOCAÇÃO DE BOSS (SUMMON)")
-    TabCombat:CreateDropdown("Boss para Invocar", const.SummonBossList, c.SelectedSummonBoss or "Nenhum", function(s) 
-        c.SelectedSummonBoss = s; c:Save() 
-    end)
-    TabCombat:CreateToggle("Auto Invocar e Farmar", c.AutoSummon, function(v) c.AutoSummon = v; c:Save() end)
-
-    TabCombat:CreateLabel("--------------------------------------------------------")
-    TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE COMBATE E MOVIMENTO")
-    TabCombat:CreateTextBox("Velocidade do Voo", c.TweenSpeed, function(v) c.TweenSpeed = tonumber(v) or 150; c:Save() end)
-    TabCombat:CreateDropdown("Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, c.AttackPosition, function(s) c.AttackPosition = s; c:Save() end)
-    TabCombat:CreateTextBox("Distância do Alvo (Studs)", c.Distance, function(v) c.Distance = tonumber(v) or 5; c:Save() end)
-
-    TabCombat:CreateLabel("--------------------------------------------------------")
-    TabCombat:CreateLabel("🗡️ ESCOLHA SUA ARMA")
-    local WeaponDrop
-    TabCombat:CreateButton("Atualizar Lista de Armas no Inventário", function() 
-        local weps = getWeaponList()
-        if WeaponDrop then WeaponDrop.Refresh(weps) end 
-    end)
-    WeaponDrop = TabCombat:CreateDropdown("Arma para Auto Farm", getWeaponList(), c.SelectedWeapon, function(s) 
-        c.SelectedWeapon = s; c:Save() 
-    end)
-
-    UpdateBossListLabel() 
-
-    -- ==========================================
-    -- 🎒 ABA 4: ITENS
-    -- ==========================================
-    local TabCollect = self:CreateTab("Itens", "🎒")
-    TabCollect:CreateToggle("Auto Group Reward", c.AutoGroupReward, function(v) c.AutoGroupReward = v; c:Save() end)
-    TabCollect:CreateToggle("Coletar Frutas (Map Scan Otimizado)", c.AutoCollect.Fruits, function(v) c.AutoCollect.Fruits = v; c:Save() end)
-    TabCollect:CreateToggle("Coletar Hogyoku", c.AutoCollect.Hogyoku, function(v) c.AutoCollect.Hogyoku = v; c:Save() end)
-    TabCollect:CreateToggle("Coletar Puzzles", c.AutoCollect.Puzzles, function(v) c.AutoCollect.Puzzles = v; c:Save() end)
-    TabCollect:CreateToggle("Coletar Baús do Chão", c.AutoCollect.Chests, function(v) c.AutoCollect.Chests = v; c:Save() end)
-
-    -- ==========================================
-    -- 📈 ABA 5: STATUS
-    -- ==========================================
-    local TabStats = self:CreateTab("Status", "📈")
-    local InfoPoints = TabStats:CreateLabel("Pontos Disponíveis: Carregando...")
-    TabStats:CreateLabel("--------------------------------------------------------")
-    TabStats:CreateLabel("DISTRIBUIÇÃO MANUAL")
-    TabStats:CreateDropdown("Atributo", const.StatsList, c.ManualStat, function(s) c.ManualStat = s; c:Save() end)
-    TabStats:CreateTextBox("Quantidade", c.ManualAmount, function(v) c.ManualAmount = tonumber(v) or 1; c:Save() end)
-    TabStats:CreateButton("➕ Adicionar Pontos", function() 
-        local AllocateStatRemote = ReplicatedStorage:FindFirstChild("AllocateStat", true)
-        if AllocateStatRemote then AllocateStatRemote:FireServer(c.ManualStat, c.ManualAmount) end 
-    end, Color3.fromRGB(40, 150, 80))
+-- 3. ABA AUTOMAÇÃO (UX: Coletar coisas passivamente)
+function Interface:BuildAutomationTab()
+    local name = "Automation"
+    self:CreateTabButton(name, Icons.Automation)
+    local frame = self:CreateContentFrame(name)
     
-    TabStats:CreateLabel("--------------------------------------------------------")
-    TabStats:CreateLabel("DISTRIBUIÇÃO AUTOMÁTICA (DIVISÃO)")
-    for _, stat in ipairs(const.StatsList) do
-        local isSelected = table.find(c.SelectedStats, stat) ~= nil
-        TabStats:CreateToggle("Auto Upar " .. stat, isSelected, function(v) 
-            if v then 
-                if not table.find(c.SelectedStats, stat) then table.insert(c.SelectedStats, stat) end 
-            else 
-                local idx = table.find(c.SelectedStats, stat)
-                if idx then table.remove(c.SelectedStats, idx) end 
-            end 
-            c:Save()
-        end)
-    end
-    TabStats:CreateToggle("Ativar Auto Distribuir", c.AutoStats, function(v) c.AutoStats = v; c:Save() end)
-    TabStats:CreateButton("🔄 Reset Status", function() 
-        local ResetStatsRemote = ReplicatedStorage:FindFirstChild("ResetStats", true)
-        if ResetStatsRemote then ResetStatsRemote:FireServer() end 
-    end, Color3.fromRGB(200, 60, 60))
+    local secCollect = self:CreateSection(frame, "Coletar Itens Automaticamente")
+    self:CreateToggle(secCollect, "Coletar Frutas (Chão)", "AutoCollect.Fruits")
+    self:CreateToggle(secCollect, "Coletar Hogyoku (Pula Ilhas)", "AutoCollect.Hogyoku")
+    self:CreateToggle(secCollect, "Coletar Baús de Tesouro", "AutoCollect.Chests")
+    self:CreateToggle(secCollect, "Coletar Puzzles/Orbs", "AutoCollect.Puzzles")
+    self:CreateToggle(secCollect, "Fruit Sniper (Compra Automática)", "FruitSniper")
+    
+    local secMisc = self:CreateSection(frame, "Outras Automações")
+    self:CreateToggle(secMisc, "Recompensas de Grupo Diárias", "AutoGroupReward")
+end
 
-    task.spawn(function()
-        while task.wait(1) do
-            if not c.IsRunning then break end
-            pcall(function() 
-                local data = LP:FindFirstChild("Data")
-                if data and data:FindFirstChild("StatPoints") then 
-                    InfoPoints.Text = "Pontos Disponíveis: " .. tostring(data.StatPoints.Value) 
-                else 
-                    InfoPoints.Text = "Pontos Disponíveis: 0" 
-                end 
-            end)
+-- 4. ABA MUNDO (UX: Viajar e Teleportar)
+function Interface:BuildWorldTab()
+    local name = "World"
+    self:CreateTabButton(name, Icons.World)
+    local frame = self:CreateContentFrame(name)
+    
+    local secTp = self:CreateSection(frame, "Teleporte Rápido (Ilhas)")
+    
+    local islandList = {}
+    if self.Constants.TeleportMap then for island, _ in pairs(self.Constants.TeleportMap) do table.insert(islandList, island) end end
+    table.sort(islandList)
+    if #islandList == 0 then table.insert(islandList, "Starter") end
+
+    self:CreateDropdown(secTp, "Viajar para", islandList, "SelectedQuestIsland", function(ilha)
+        if _G.ComunidadeHub_Core and _G.ComunidadeHub_Core.CombatService then
+            _G.ComunidadeHub_Core.CombatService:SmartIslandTeleport(ilha)
+            print("🚀 Teleportando para " .. ilha)
         end
     end)
+    
+    local note = Instance.new("TextLabel")
+    note.Size = UDim2.new(1, 0, 0, 20)
+    note.BackgroundTransparency = 1
+    note.Text = "Nota: O teleporte usa o sistema do jogo."
+    note.Font = Enum.Font.Gotham
+    note.TextSize = 11
+    note.TextColor3 = Theme.TextDim
+    note.Parent = secTp
+end
 
-    -- ==========================================
-    -- 🎲 ABA 6: ROLETA
-    -- ==========================================
-    local TabRoleta = self:CreateTab("Roleta", "🎲")
-    TabRoleta:CreateTextBox("Raça Sniper", c.AutoReroll.TargetRace, function(v) c.AutoReroll.TargetRace = tostring(v); c:Save() end)
-    TabRoleta:CreateToggle("Iniciar Sniper Raça", c.AutoReroll.Race, function(v) c.AutoReroll.Race = v; c:Save() end)
-    TabRoleta:CreateLabel("--------------------------------------------------------")
-    TabRoleta:CreateLabel("📦 ABERTURA DE BAÚS")
-    TabRoleta:CreateTextBox("Quantidade (9999 = Máximo)", c.ChestOpenAmount or 1, function(v) c.ChestOpenAmount = tonumber(v) or 1; c:Save() end)
-    TabRoleta:CreateToggle("Abrir Baús Comuns", c.AutoOpenChests.Common, function(v) c.AutoOpenChests.Common = v; c:Save() end)
-    TabRoleta:CreateToggle("Abrir Baús Raros", c.AutoOpenChests.Rare, function(v) c.AutoOpenChests.Rare = v; c:Save() end)
-    TabRoleta:CreateToggle("Abrir Baús Épicos", c.AutoOpenChests.Epic, function(v) c.AutoOpenChests.Epic = v; c:Save() end)
-    TabRoleta:CreateToggle("Abrir Baús Lendários", c.AutoOpenChests.Legendary, function(v) c.AutoOpenChests.Legendary = v; c:Save() end)
-    TabRoleta:CreateToggle("Abrir Baús Míticos", c.AutoOpenChests.Mythical, function(v) c.AutoOpenChests.Mythical = v; c:Save() end)
+-- 5. ABA PERSONAGEM (UX: Stats e Rerolls)
+function Interface:BuildCharacterTab()
+    local name = "Character"
+    self:CreateTabButton(name, Icons.Character)
+    local frame = self:CreateContentFrame(name)
+    
+    local secStats = self:CreateSection(frame, "Auto Stats (Distribuir Pontos)")
+    self:CreateToggle(secStats, "Ativar Distribuição", "AutoStats")
+    self:CreateDropdown(secStats, "Distribuir Em", {"Todos", "Melee", "Defense", "Sword", "Fruit"}, "SelectedStats")
+    
+    local secReroll = self:CreateSection(frame, "Gacha de Personagem (Reroll)")
+    self:CreateDropdown(secReroll, "Alvo Raça", {"Human", "Fishman", "Mink", "Skypiean"}, "AutoReroll.TargetRace")
+    self:CreateToggle(secReroll, "Auto Reroll Raça (Se tiver item)", "AutoReroll.Race")
+    
+    local secMisc = self:CreateSection(frame, "Melhorias de Movimento")
+    self:CreateToggle(secMisc, "Super Velocidade (Voar)", "SuperSpeed")
+    self:CreateToggle(secMisc, "Pulo Infinito", "InfJump")
+end
 
-    -- ==========================================
-    -- 🌍 ABA 7: MUNDO
-    -- ==========================================
-    local TabWorld = self:CreateTab("Mundo", "🌍")
-    TabWorld:CreateLabel("PORTAIS INSTANTÂNEOS")
-    TabWorld:CreateDropdown("Viajar para Ilha", const.Islands, "Starter", function(ilhaDestino)
-        local targetStr = const.TeleportMap[ilhaDestino]
-        if targetStr then
-            local TeleportRemote = ReplicatedStorage:FindFirstChild("TeleportToPortal", true)
-            if TeleportRemote then TeleportRemote:FireServer(targetStr) end
-            self:Notify("Teleporte", "Viajando para " .. ilhaDestino, 3)
-        end
-    end)
-    TabWorld:CreateLabel("IR ATÉ NPC (VOANDO)")
-    TabWorld:CreateDropdown("Selecione o NPC", const.NPCs, "EnchantNPC", function(npcName)
-        local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(npcName)
-        if npc then
-            self.FSM.TargetManager:SetInteractionTarget(npc)
-            self.FSM.State = "NAVIGATING"
-        else
-            self:Notify("Erro", "NPC não encontrado na ilha atual.", 3)
-        end
-    end)
+-- 6. ABA GACHA (UX: Abrir coisas e RNG)
+function Interface:BuildGachaTab()
+    local name = "Gacha"
+    self:CreateTabButton(name, Icons.Gacha)
+    local frame = self:CreateContentFrame(name)
+    
+    local secChest = self:CreateSection(frame, "Abrir Baús do Inventário")
+    self:CreateDropdown(secChest, "Quantidade por Vez", {1, 10, 50, "Todos"}, "ChestOpenAmount")
+    self:CreateToggle(secChest, "Abrir Comuns", "AutoOpenChests.Common")
+    self:CreateToggle(secChest, "Abrir Raros", "AutoOpenChests.Rare")
+    self:CreateToggle(secChest, "Abrir Épicos", "AutoOpenChests.Epic")
+    self:CreateToggle(secChest, "Abrir Lendários", "AutoOpenChests.Legendary")
+    self:CreateToggle(secChest, "Abrir Míticos", "AutoOpenChests.Mythical")
+end
 
-    -- ==========================================
-    -- 🕵️‍♂️ ABA 8: NATIVOS
-    -- ==========================================
-    local TabNativos = self:CreateTab("Nativos", "🕵️‍♂️")
-    TabNativos:CreateLabel("HACKS NATIVOS (Controle de Remotes)")
-    TabNativos:CreateToggle("Haki do Armamento", c.HacksNativos.HakiArmamento, function(v) 
-        c.HacksNativos.HakiArmamento = v; c:Save()
-        local HakiRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("HakiRemote")
-        if HakiRemote then HakiRemote:FireServer("Toggle") end
-    end)
-    TabNativos:CreateToggle("Haki da Observação", c.HacksNativos.HakiObservacao, function(v) 
-        c.HacksNativos.HakiObservacao = v; c:Save()
-        local ObsRemote = ReplicatedStorage:WaitForChild("RemoteEvents"):WaitForChild("ObservationHakiRemote")
-        if ObsRemote then ObsRemote:FireServer("Toggle") end
-    end)
-    TabNativos:CreateToggle("Hack de Pulos Extras", c.HacksNativos.PuloExtra, function(v) 
-        c.HacksNativos.PuloExtra = v; c:Save()
-        if not v then pcall(function() LP:SetAttribute("RaceExtraJumps", 0) end) end 
+-- 7. ABA CONFIGURAÇÕES (UX: Controle do script)
+function Interface:BuildSettingsTab()
+    local name = "Settings"
+    self:CreateTabButton(name, Icons.Settings)
+    local frame = self:CreateContentFrame(name)
+    
+    local secMenu = self:CreateSection(frame, "Controles do Menu")
+    
+    -- UX Simplificado: Atalho fixo RightControl
+    local keyLbl = Instance.new("TextLabel")
+    keyLbl.Size = UDim2.new(1, -20, 0, 32)
+    keyLbl.Position = UDim2.new(0, 10, 0, 0)
+    keyLbl.BackgroundTransparency = 1
+    keyLbl.Text = "Atalho para fechar/abrir: [RightControl]"
+    keyLbl.Font = Enum.Font.Gotham
+    keyLbl.TextSize = 13
+    keyLbl.TextColor3 = Theme.Text
+    keyLbl.TextXAlignment = Enum.TextXAlignment.Left
+    keyLbl.Parent = secMenu
+
+    local secGame = self:CreateSection(frame, "Controles do Jogo")
+    self:CreateButton(secGame, "Reentrar no Servidor (Rejoin)", function()
+        pcall(function() game:GetService("TeleportService"):Teleport(game.PlaceId, LP) end)
     end)
     
-    TabNativos:CreateLabel("QUALIDADE DE VIDA")
-    TabNativos:CreateToggle("Remover Tremores (NoShake)", c.HacksNativos.NoShake, function(v) 
-        c.HacksNativos.NoShake = v; c:Save(); pcall(function() LP:SetAttribute("DisableScreenShake", v) end) 
+    local unloadBtn = self:CreateButton(secGame, "Descarregar Script (Unload)", function()
+        print("🧹 Descarregando Hub...")
+        if _G.ComunidadeHub_Cleanup then _G.ComunidadeHub_Cleanup() end
     end)
-    TabNativos:CreateToggle("Pular Animações (NoCutscene)", c.HacksNativos.NoCutscene, function(v) 
-        c.HacksNativos.NoCutscene = v; c:Save(); pcall(function() LP:SetAttribute("DisableCutscene", v) end) 
-    end)
-    TabNativos:CreateToggle("Modo Proteção PvP", c.HacksNativos.DisablePvP, function(v) 
-        c.HacksNativos.DisablePvP = v; c:Save(); pcall(function() LP:SetAttribute("DisablePvP", v) end) 
-    end)
+    unloadBtn.BackgroundColor3 = Color3.fromRGB(180, 50, 50) -- Vermelho
+end
 
-    -- ==========================================
-    -- 🍎 ABA 9: FRUIT SNIPER
-    -- ==========================================
-    local TabSniper = self:CreateTab("Fruit V2", "🍎")
-    TabSniper:CreateLabel("FRUIT SNIPER NATIVO (REAL-TIME)")
-    TabSniper:CreateToggle("Sniper de Frutas Instantâneo", c.FruitSniper, function(v) 
-        c.FruitSniper = v; c:Save() 
-    end)
-
-    -- ==========================================
-    -- ⚙️ ABA 10: MISC
-    -- ==========================================
-    local TabMisc = self:CreateTab("Misc", "⚙️")
-    TabMisc:CreateToggle("Super Velocidade", c.SuperSpeed, function(v) c.SuperSpeed = v; c:Save() end)
-    TabMisc:CreateToggle("Pulo Infinito", c.InfJump, function(v) c.InfJump = v; c:Save() end)
-
+-- ==========================================
+-- 🔄 LÓGICA DE INPUT (FECHAR/ABRIR)
+-- ==========================================
+function Interface:HandleInput()
+    -- RightControl para fechar/abrir
+    table.insert(self._Connections, UserInputService.InputBegan:Connect(function(input, processed)
+        if not processed and input.KeyCode == Enum.KeyCode.RightControl then
+            self.MainFrame.Visible = not self.MainFrame.Visible
+        end
+    end))
 end
 
 function Interface:Destroy()
     if self.ScreenGui then self.ScreenGui:Destroy() end
-    for _, conn in ipairs(self._connections) do
-        if conn then conn:Disconnect() end
-    end
+    for _, conn in ipairs(self._Connections) do if conn then conn:Disconnect() end end
+    self._Connections = {}
 end
 
 return Interface

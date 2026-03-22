@@ -69,7 +69,6 @@ function CombatService:SmartIslandTeleport(islandName)
         local oldPos = hrp and hrp.Position or Vector3.zero
 
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
-        
         self:SetCharacterFrozen(true)
         
         self.Remotes.Teleport:FireServer(dest)
@@ -84,7 +83,7 @@ function CombatService:SmartIslandTeleport(islandName)
             task.wait(3)
         end
         
-        task.wait(1.5) 
+        -- Garante o spawn antes de liberar para o FSM
         self:AutoSaveSpawn() 
         return true
     end
@@ -96,30 +95,39 @@ function CombatService:AutoSaveSpawn()
         local char = LP.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
         local hrp = char.HumanoidRootPart
-        local myPos = hrp.Position
+        
         local closestPrompt, targetPart = nil, nil
-        local minDist = math.huge
-
-        for _, obj in pairs(Workspace:GetDescendants()) do
-            if obj:IsA("ProximityPrompt") then
-                local actionText = string.lower(obj.ActionText)
-                if obj.Name == "CheckpointPrompt" or actionText == "set spawn" then
-                    local part = obj.Parent
-                    if part and part:IsA("BasePart") then
-                        local dist = (part.Position - myPos).Magnitude
-                        if dist < minDist and dist < 1500 then
-                            minDist = dist; closestPrompt = obj; targetPart = part
+        
+        -- LOOP DE ESPERA (Aguarda até 4 segundos pro mapa e o spawn renderizarem)
+        for attempt = 1, 8 do
+            local myPos = hrp.Position
+            local minDist = math.huge
+            for _, obj in pairs(Workspace:GetDescendants()) do
+                if obj:IsA("ProximityPrompt") then
+                    local actionText = string.lower(obj.ActionText or "")
+                    local objName = string.lower(obj.Name or "")
+                    if objName == "checkpointprompt" or actionText:find("spawn") or actionText:find("checkpoint") then
+                        local part = obj.Parent
+                        if part and part:IsA("BasePart") then
+                            local dist = (part.Position - myPos).Magnitude
+                            if dist < 1500 then
+                                minDist = dist; closestPrompt = obj; targetPart = part
+                            end
                         end
                     end
                 end
             end
+            if closestPrompt then break end
+            task.wait(0.5)
         end
 
+        -- Se achou o Spawn, voa até ele e interage
         if closestPrompt and targetPart then
             self:SetCharacterFrozen(true)
             local distance = (hrp.Position - targetPart.Position).Magnitude
             if distance > 10 then
-                local tween = TweenService:Create(hrp, TweenInfo.new(distance / 150, Enum.EasingStyle.Linear), {CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)})
+                local tempo = distance / math.max(self.Config.TweenSpeed, 50)
+                local tween = TweenService:Create(hrp, TweenInfo.new(tempo, Enum.EasingStyle.Linear), {CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)})
                 tween:Play(); tween.Completed:Wait()
             else
                 hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
@@ -129,7 +137,9 @@ function CombatService:AutoSaveSpawn()
             task.wait(0.5)
             
             if fireproximityprompt then 
-                fireproximityprompt(closestPrompt); task.wait(0.2); fireproximityprompt(closestPrompt)
+                fireproximityprompt(closestPrompt)
+                task.wait(0.2)
+                fireproximityprompt(closestPrompt)
             end
             task.wait(0.5)
             
@@ -176,8 +186,12 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
     local targetCFrame = CFrame.new(targetPos, targetTargetPos)
     local distance = (hrp.Position - targetPos).Magnitude
     
-    -- Aborta se for maior que 5000 (evita voar pelo mapa todo)
-    if distance > 5000 then return false end
+    -- 🛑 LIMITE DE 800 STUDS: Previne deslizar pelo mar se a ilha bugar
+    if distance > 800 then 
+        self:SetCharacterFrozen(false) -- Garante que não ficará travado
+        if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
+        return false 
+    end
     
     if distance > 15 then
         if self.CurrentTween and self.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then

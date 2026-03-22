@@ -6,7 +6,8 @@ local HttpService = game:GetService("HttpService")
 
 local Config = {
     -- Variável mestre de controle do ciclo de vida
-    IsRunning = true, 
+    IsRunning = true,
+    CurrentSpawnIsland = "Nenhuma",
     
     -- ==========================================
     -- ⚔️ COMBATE & MOVIMENTO

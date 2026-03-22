@@ -1,10 +1,12 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Blindado Anti-Crash)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado Anti-Crash V2)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TextChatService = game:GetService("TextChatService")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
 local LP = Players.LocalPlayer
 
 local FSM = {}
@@ -17,38 +19,56 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.CombatService = CombatService
     self.ItemCache = ItemCache
     
-    -- 🛡️ ESCUDO: Se o script principal esquecer de enviar o Constants, ele não crasha mais.
-    self.Constants = Constants or {
-        QuestFilterOptions = {},
-        QuestDataMap = {},
-        IslandDataMap = {},
-        QuestProgression = {}
-    }
+    self.Constants = Constants or { QuestFilterOptions = {}, QuestDataMap = {}, IslandDataMap = {}, QuestProgression = {} }
     
     self.State = "IDLE"
     self.LastBackgroundTick = 0
-    
     self.HogyokuIslandIndex = 1
     self.BossState = {}
     self.BossPatience = 0
     self.QuestGuiCache = nil
-    
     self.IsCollecting = false
+    self._Connections = {} -- Guarda os loops extras (Misc)
     
     self:_InitChatMonitor()
+    self:_InitMisc() -- Inicia Speed e InfJump
     return self
+end
+
+-- ==========================================
+-- ⚡ INICIALIZADORES (Misc e Chat)
+-- ==========================================
+function FSM:_InitMisc()
+    -- Super Velocidade
+    table.insert(self._Connections, RunService.Heartbeat:Connect(function()
+        if self.Config.SuperSpeed then
+            local char = LP.Character
+            local hum = char and char:FindFirstChild("Humanoid")
+            if hum and hum.MoveDirection.Magnitude > 0 then
+                char:TranslateBy(hum.MoveDirection * (self.Config.SpeedMultiplier or 2))
+            end
+        end
+    end))
+
+    -- Pulo Infinito
+    table.insert(self._Connections, UserInputService.JumpRequest:Connect(function()
+        if self.Config.InfJump then
+            local hum = LP.Character and LP.Character:FindFirstChild("Humanoid")
+            if hum then hum:ChangeState(Enum.HumanoidStateType.Jumping) end
+        end
+    end))
 end
 
 function FSM:_InitChatMonitor()
     local function ParseChat(mensagem)
         if not self.Config.AutoBoss or #self.Config.SelectedBosses == 0 then return end
         local msg = string.lower(mensagem):gsub("%s+", "")
-        if string.lower(mensagem):find("spawned") then
+        if msg:find("spawned") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
                 if msg:find(baseName) then self.BossState[bossName] = "Alive"; self.BossPatience = 0 end
             end
-        elseif string.lower(mensagem):find("defeated") then
+        elseif msg:find("defeated") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
                 if msg:find(baseName) then self.BossState[bossName] = "Dead"; self.BossPatience = 0 end
@@ -56,50 +76,36 @@ function FSM:_InitChatMonitor()
         end
     end
     pcall(function()
-        if TextChatService then TextChatService.MessageReceived:Connect(function(msg) if msg and msg.Text then ParseChat(msg.Text) end end) end
+        if TextChatService then table.insert(self._Connections, TextChatService.MessageReceived:Connect(function(msg) if msg and msg.Text then ParseChat(msg.Text) end end)) end
         local defaultChat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
         if defaultChat and defaultChat:FindFirstChild("OnMessageDoneFiltering") then
-            defaultChat.OnMessageDoneFiltering.OnClientEvent:Connect(function(data) if data and data.Message then ParseChat(data.Message) end end)
+            table.insert(self._Connections, defaultChat.OnMessageDoneFiltering.OnClientEvent:Connect(function(data) if data and data.Message then ParseChat(data.Message) end end))
         end
     end)
 end
 
-function FSM:IsQuestActive(questData)
-    local pg = LP:FindFirstChild("PlayerGui")
-    if not pg then return false end
-    local desc = self.QuestGuiCache
-    if not desc or not desc.Parent or not desc.Visible then
-        self.QuestGuiCache = nil
-        for _, obj in ipairs(pg:GetDescendants()) do
-            if obj:IsA("TextLabel") and obj.Name == "QuestRequirement" and obj.Text:find("/") then
-                local isVis, temp = true, obj
-                while temp and temp:IsA("GuiObject") do if not temp.Visible then isVis = false break end; temp = temp.Parent end
-                if isVis then self.QuestGuiCache = obj; desc = obj; break end
-            end
-        end
-    end
-    if not desc then return false end
-    if not questData then return true end
-    local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
-    local uiText = desc.Text:lower():gsub("%s+", "")
-    local titleText = ""
-    if desc.Parent then
-        for _, sib in ipairs(desc.Parent:GetChildren()) do if sib:IsA("TextLabel") and sib.Name ~= "QuestRequirement" then titleText = titleText .. sib.Text:lower():gsub("%s+", "") end end
-    end
-    local isMatch = false
-    if uiText:find(targetBase) or titleText:find(targetBase) then isMatch = true end
-    if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then isMatch = false end
-    if targetBase == "swordsman" and (uiText:find("swordsmen") or titleText:find("swordsmen")) then isMatch = true end
-    if isMatch then
-        local curr, max = desc.Text:match("(%d+)/(%d+)")
-        if curr and max and tonumber(curr) < tonumber(max) then return true end
-    end
-    return false
-end
-
+-- ==========================================
+-- 🔄 MOTOR DE ESTADOS (Update)
+-- ==========================================
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
     
+    -- 🛑 FREIO DE EMERGÊNCIA: Aborta se o usuário desligar tudo na interface
+    local isFarmingActive = self.Config.AutoFarm or self.Config.AutoBoss or self.Config.AutoQuest or self.Config.AutoFarmMaxLevel or self.Config.AutoDummy
+    local isCollectingActive = self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Hogyoku or self.Config.AutoCollect.Puzzles or self.Config.AutoCollect.Chests or self.Config.FruitSniper
+    
+    if not isFarmingActive and not isCollectingActive then
+        if self.State ~= "IDLE" then
+            self.TargetManager:ClearTarget()
+            self.TargetManager:ClearInteractionTarget()
+            self.State = "IDLE"
+            self.IsCollecting = false
+            self.CombatService:SetCharacterFrozen(false)
+            if self.CombatService.CurrentTween then self.CombatService.CurrentTween:Cancel() end
+        end
+        return
+    end
+
     if self.IsCollecting then return end
 
     if self.State == "IDLE" then self:State_IDLE()
@@ -111,16 +117,11 @@ function FSM:Update(deltaTime)
 end
 
 function FSM:State_IDLE()
-    if self.Config.AutoFarm or self.Config.AutoBoss or self.Config.AutoQuest or self.Config.AutoFarmMaxLevel or
-       self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Chests or self.Config.AutoCollect.Hogyoku or 
-       self.Config.AutoCollect.Puzzles or self.Config.FruitSniper or self.Config.AutoDummy then
-        self.State = "SEARCHING"
-    else
-        self.CombatService:SetCharacterFrozen(false)
-    end
+    self.State = "SEARCHING"
 end
 
 function FSM:State_SEARCHING()
+    -- 1. Prioridade para Itens no Chão
     local checkList = {
         { Ativo = self.Config.FruitSniper or self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
         { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
@@ -129,7 +130,6 @@ function FSM:State_SEARCHING()
     }
     
     local achouItem = false
-    
     for _, configItem in ipairs(checkList) do
         if configItem.Ativo then
             local items = self.ItemCache:GetItems(configItem.Tipo)
@@ -142,6 +142,7 @@ function FSM:State_SEARCHING()
         end
     end
     
+    -- 2. Prioridade Boss
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         local bossTargetName = nil
         for _, b in ipairs(self.Config.SelectedBosses) do
@@ -168,12 +169,11 @@ function FSM:State_SEARCHING()
         end
     end
 
+    -- 3. Prioridade Missões/Level
     if self.Config.AutoFarmMaxLevel or self.Config.AutoQuest then
         if self.Config.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
             local lvl = data and data:FindFirstChild("Level") and data.Level.Value or 1
-            
-            -- 🛡️ Blindagem de Acesso Seguro
             if self.Constants and self.Constants.QuestProgression then
                 for _, q in ipairs(self.Constants.QuestProgression) do
                     if lvl >= q.MinLevel then self.Config.SelectedQuestIsland = q.Island; self.Config.SelectedQuest = q.Quest else break end
@@ -205,6 +205,7 @@ function FSM:State_SEARCHING()
         end
     end
 
+    -- 4. Prioridade Dummy/Farm Manual
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
         if dummy then self.TargetManager:SetTarget(dummy); self.State = "NAVIGATING"; return end
@@ -218,19 +219,16 @@ function FSM:State_SEARCHING()
         end
     end
     
+    -- 5. Lógica de Pulo de Ilhas (Hogyoku)
     local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
-    
     if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
-        -- 🛡️ Blindagem de Acesso Seguro
         local listaIlhas = self.Constants and self.Constants.QuestFilterOptions or {}
-        if listaIlhas and #listaIlhas > 0 then
+        if #listaIlhas > 0 then
             if self.HogyokuIslandIndex > #listaIlhas then self.HogyokuIslandIndex = 1 end
-            
             local ilhaDestino = listaIlhas[self.HogyokuIslandIndex]
             
             if self.CombatService:SmartIslandTeleport(ilhaDestino) then
                 self.HogyokuIslandIndex = self.HogyokuIslandIndex + 1
-                
                 self.IsCollecting = true
                 task.spawn(function()
                     task.wait(3.5)
@@ -268,48 +266,51 @@ function FSM:State_COLLECTING()
     if not item then self.State = "SEARCHING"; return end
     
     self.CombatService:SetCharacterFrozen(false)
-    
     if self.IsCollecting then return end
     self.IsCollecting = true
     
     task.spawn(function()
-        local pos = nil
-        if item:IsA("BasePart") then pos = item.Position
-        elseif item:IsA("Model") and item.PrimaryPart then pos = item.PrimaryPart.Position
-        elseif item:IsA("Model") then 
-            local p = item:FindFirstChildWhichIsA("BasePart", true)
-            if p then pos = p.Position end
-        end
-        
-        local char = LP.Character
-        if char and char:FindFirstChild("HumanoidRootPart") and pos then
-            char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-            task.wait(0.5)
+        pcall(function()
+            local pos = nil
+            if item:IsA("BasePart") then pos = item.Position
+            elseif item:IsA("Model") and item.PrimaryPart then pos = item.PrimaryPart.Position
+            elseif item:IsA("Model") then 
+                local p = item:FindFirstChildWhichIsA("BasePart", true)
+                if p then pos = p.Position end
+            end
             
-            local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true) or (item.Parent and item.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
-            local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
-            
-            if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-            if clicker and fireclickdetector then fireclickdetector(clicker) end
-            
-            self.ItemCache:IgnoreItem(item)
-            self.TargetManager:ClearInteractionTarget()
-            
-            task.wait(1.5) 
-        else
-            self.ItemCache:IgnoreItem(item)
-            self.TargetManager:ClearInteractionTarget()
-        end
-        
+            local char = LP.Character
+            if char and char:FindFirstChild("HumanoidRootPart") and pos then
+                char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+                task.wait(0.5)
+                
+                local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true) or (item.Parent and item.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+                local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
+                
+                if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+                if clicker and fireclickdetector then fireclickdetector(clicker) end
+                
+                self.ItemCache:IgnoreItem(item)
+                self.TargetManager:ClearInteractionTarget()
+                task.wait(1.5) 
+            else
+                self.ItemCache:IgnoreItem(item)
+                self.TargetManager:ClearInteractionTarget()
+            end
+        end)
         self.State = "SEARCHING"
         self.IsCollecting = false
     end)
 end
 
 function FSM:FindMob(typeStr, name)
-    local myPos = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character.HumanoidRootPart.Position or Vector3.zero
+    local char = LP.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return nil end
+    local myPos = hrp.Position
     local closest, minDist = nil, math.huge
     local npcsFolder = Workspace:FindFirstChild("NPCs")
+    
     if typeStr == "Dummy" and npcsFolder then
         for _, npc in ipairs(npcsFolder:GetChildren()) do if npc.Name == "TrainingDummy" or npc:GetAttribute("IsTrainingDummy") then return npc end end
     elseif typeStr == "Mob" and npcsFolder then
@@ -320,8 +321,8 @@ function FSM:FindMob(typeStr, name)
                 if not isBoss then
                     local baseName = npc.Name:gsub("%d+", "")
                     if name == "Todos" or baseName == name then 
-                        local hrp = npc:FindFirstChild("HumanoidRootPart")
-                        if hrp then local dist = (myPos - hrp.Position).Magnitude; if dist < minDist then minDist = dist; closest = npc end end
+                        local part = npc:FindFirstChild("HumanoidRootPart")
+                        if part then local dist = (myPos - part.Position).Magnitude; if dist < minDist then minDist = dist; closest = npc end end
                     end
                 end
             end
@@ -332,8 +333,8 @@ function FSM:FindMob(typeStr, name)
                 for _, boss in pairs(obj:GetDescendants()) do
                     if boss:IsA("Model") and boss:FindFirstChild("Humanoid") and boss.Humanoid.Health > 0 then
                         if boss.Name:find(name) and (boss:GetAttribute("Boss") or boss:GetAttribute("_IsTimedBoss") or boss.Name:lower():find("boss")) then 
-                            local hrp = boss:FindFirstChild("HumanoidRootPart")
-                            if hrp then local dist = (myPos - hrp.Position).Magnitude; if dist < minDist then minDist = dist; closest = boss end end
+                            local part = boss:FindFirstChild("HumanoidRootPart")
+                            if part then local dist = (myPos - part.Position).Magnitude; if dist < minDist then minDist = dist; closest = boss end end
                         end
                     end
                 end
@@ -344,9 +345,7 @@ function FSM:FindMob(typeStr, name)
 end
 
 function FSM:GetIslandByTarget(typeStr, name)
-    -- 🛡️ Blindagem: Se não achar o banco de dados das ilhas, aborta sem dar crash
     if not self.Constants or not self.Constants.IslandDataMap then return nil end
-    
     for island, data in pairs(self.Constants.IslandDataMap) do
         if typeStr == "Mob" and data.Mobs then 
             for _, mob in ipairs(data.Mobs) do if mob == name then return island end end
@@ -380,13 +379,42 @@ function FSM:GetCurrentIsland()
 end
 
 function FSM:GetQuestData(island, name)
-    -- 🛡️ Blindagem: Protege contra crash caso o mapa de quests não exista
     if not self.Constants or not self.Constants.QuestDataMap or not self.Constants.QuestDataMap[island] then return nil end
-    
-    for _, q in ipairs(self.Constants.QuestDataMap[island]) do 
-        if q.Name == name then return q end 
-    end
+    for _, q in ipairs(self.Constants.QuestDataMap[island]) do if q.Name == name then return q end end
     return nil
+end
+
+function FSM:IsQuestActive(questData)
+    local pg = LP:FindFirstChild("PlayerGui")
+    if not pg then return false end
+    local desc = self.QuestGuiCache
+    if not desc or not desc.Parent or not desc.Visible then
+        self.QuestGuiCache = nil
+        for _, obj in ipairs(pg:GetDescendants()) do
+            if obj:IsA("TextLabel") and obj.Name == "QuestRequirement" and obj.Text:find("/") then
+                local isVis, temp = true, obj
+                while temp and temp:IsA("GuiObject") do if not temp.Visible then isVis = false break end; temp = temp.Parent end
+                if isVis then self.QuestGuiCache = obj; desc = obj; break end
+            end
+        end
+    end
+    if not desc then return false end
+    if not questData then return true end
+    local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
+    local uiText = desc.Text:lower():gsub("%s+", "")
+    local titleText = ""
+    if desc.Parent then
+        for _, sib in ipairs(desc.Parent:GetChildren()) do if sib:IsA("TextLabel") and sib.Name ~= "QuestRequirement" then titleText = titleText .. sib.Text:lower():gsub("%s+", "") end end
+    end
+    local isMatch = false
+    if uiText:find(targetBase) or titleText:find(targetBase) then isMatch = true end
+    if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then isMatch = false end
+    if targetBase == "swordsman" and (uiText:find("swordsmen") or titleText:find("swordsmen")) then isMatch = true end
+    if isMatch then
+        local curr, max = desc.Text:match("(%d+)/(%d+)")
+        if curr and max and tonumber(curr) < tonumber(max) then return true end
+    end
+    return false
 end
 
 function FSM:HandleBackgroundTasks()
@@ -419,6 +447,11 @@ function FSM:HandleBackgroundTasks()
             if npc then self.TargetManager:SetInteractionTarget(npc); self.State = "NAVIGATING" end
         end
     end)
+end
+
+function FSM:Destroy()
+    for _, conn in ipairs(self._Connections) do if conn then conn:Disconnect() end end
+    self._Connections = {}
 end
 
 return FSM

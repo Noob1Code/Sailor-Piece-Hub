@@ -1,5 +1,5 @@
 -- =====================================================================
--- ⚔️ SERVICES: CombatService.lua
+-- ⚔️ SERVICES: CombatService.lua (Limite 720 Studs + CurrentSpawnIsland)
 -- =====================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -66,25 +66,23 @@ function CombatService:SmartIslandTeleport(islandName)
     if self.Remotes.Teleport then
         local char = LP.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
-        local oldPos = hrp and hrp.Position or Vector3.zero
 
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
         self:SetCharacterFrozen(true)
         
         self.Remotes.Teleport:FireServer(dest)
         self.LastTeleportTime = tick()
-
-        if hrp then
-            for i = 1, 15 do 
-                task.wait(0.5)
-                if (hrp.Position - oldPos).Magnitude > 200 then break end
+        task.wait(1.5) -- Aguarda renderização básica do mapa pós-teleporte
+        
+        -- 🛡️ REGRA: Só tenta setar o spawn se mudamos de ilha
+        if self.Config.CurrentSpawnIsland ~= islandName then
+            local success = self:AutoSaveSpawn() 
+            if success then
+                self.Config.CurrentSpawnIsland = islandName
             end
-        else
-            task.wait(3)
         end
         
-        -- Garante o spawn antes de liberar para o FSM
-        self:AutoSaveSpawn() 
+        self:SetCharacterFrozen(false)
         return true
     end
     return false
@@ -143,11 +141,9 @@ function CombatService:AutoSaveSpawn()
             end
             task.wait(0.5)
             
-            self:SetCharacterFrozen(false)
             return true 
         end
     end)
-    self:SetCharacterFrozen(false)
     return false
 end
 
@@ -181,24 +177,25 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
         targetPos = targetInstance.Position
     end
 
-    self:SetCharacterFrozen(true)
     local targetTargetPos = targetInstance:IsA("Model") and targetInstance:FindFirstChild("HumanoidRootPart") and targetInstance.HumanoidRootPart.Position or targetInstance.Position
     local targetCFrame = CFrame.new(targetPos, targetTargetPos)
     local distance = (hrp.Position - targetPos).Magnitude
     
-    -- 🛑 LIMITE DE 800 STUDS: Previne deslizar pelo mar se a ilha bugar
-    if distance > 800 then 
-        self:SetCharacterFrozen(false) -- Garante que não ficará travado
+    -- 🛑 REGRA ESTRITA: Limite de 720 Studs. Retorna falso para FSM forçar teleporte.
+    if distance > 720 then 
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
+        self:SetCharacterFrozen(false)
         return false 
     end
+    
+    self:SetCharacterFrozen(true)
     
     if distance > 15 then
         if self.CurrentTween and self.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then
             if self.LastTweenTargetPos and (self.LastTweenTargetPos - targetPos).Magnitude > 10 then
                 self.CurrentTween:Cancel()
             else
-                return false
+                return true -- Ainda está navegando
             end
         end
 
@@ -206,7 +203,7 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
         self.LastTweenTargetPos = targetPos
         self.CurrentTween = TweenService:Create(hrp, TweenInfo.new(tempo, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
         self.CurrentTween:Play()
-        return false
+        return true
     else
         if self.CurrentTween then 
             self.CurrentTween:Cancel() 

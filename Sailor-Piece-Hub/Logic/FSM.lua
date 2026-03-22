@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Sincronizado V4)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Fila de Boss Inteligente)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -23,8 +23,12 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.State = "IDLE"
     self.LastBackgroundTick = 0
     self.HogyokuIslandIndex = 1
+    
+    -- Controle Avançado de Boss
     self.BossState = {}
     self.BossPatience = 0
+    self.LastAutoBossState = false -- Gatilho para saber quando ligou o OFF -> ON
+    
     self.QuestGuiCache = nil
     self.IsCollecting = false
     self._Connections = {} 
@@ -54,20 +58,30 @@ end
 
 function FSM:_InitChatMonitor()
     local function ParseChat(mensagem)
-        if not self.Config.AutoBoss or #self.Config.SelectedBosses == 0 then return end
+        if not self.Config.SelectedBosses or #self.Config.SelectedBosses == 0 then return end
         local msg = string.lower(mensagem):gsub("%s+", "")
-        if msg:find("spawned") then
+        
+        -- 5 - Quando o chat avisa que renasceu, muda para "Pendente"
+        if msg:find("spawned") or msg:find("apareceu") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-                if msg:find(baseName) then self.BossState[bossName] = "Alive"; self.BossPatience = 0 end
+                if msg:find(baseName) then 
+                    self.BossState[bossName] = "Pendente"
+                    self.BossPatience = 0 
+                end
             end
-        elseif msg:find("defeated") then
+        -- Opcional: Garantia extra se o chat avisar que morreu
+        elseif msg:find("defeated") or msg:find("foiderrotado") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-                if msg:find(baseName) then self.BossState[bossName] = "Dead"; self.BossPatience = 0 end
+                if msg:find(baseName) then 
+                    self.BossState[bossName] = "Morto"
+                    self.BossPatience = 0 
+                end
             end
         end
     end
+
     pcall(function()
         if TextChatService then table.insert(self._Connections, TextChatService.MessageReceived:Connect(function(msg) if msg and msg.Text then ParseChat(msg.Text) end end)) end
         local defaultChat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
@@ -79,6 +93,15 @@ end
 
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
+    
+    -- 1 - Se o botão foi de OFF para ON, coloca todos como "Pendente"
+    if self.Config.AutoBoss and not self.LastAutoBossState then
+        for _, b in ipairs(self.Config.SelectedBosses) do
+            self.BossState[b] = "Pendente"
+        end
+        self.BossPatience = 0
+    end
+    self.LastAutoBossState = self.Config.AutoBoss
     
     local isFarmingActive = self.Config.AutoFarm or self.Config.AutoBoss or self.Config.AutoQuest or self.Config.AutoFarmMaxLevel or self.Config.AutoDummy
     local isCollectingActive = self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Hogyoku or self.Config.AutoCollect.Puzzles or self.Config.AutoCollect.Chests or self.Config.FruitSniper
@@ -112,7 +135,24 @@ end
 function FSM:State_SEARCHING(deltaTime)
     deltaTime = deltaTime or 0.1
 
-    -- 1. Coleta Terrestre Prioritária
+    -- Função Auxiliar de Navegação
+    local function checkAndNavigate(targetInstance, expectedIsland)
+        if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
+            self.CombatService:SmartIslandTeleport(expectedIsland)
+            return true
+        end
+        if not targetInstance then return false end
+        
+        if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
+            self.TargetManager:SetTarget(targetInstance)
+        else
+            self.TargetManager:SetInteractionTarget(targetInstance)
+        end
+        self.State = "NAVIGATING"
+        return true
+    end
+
+    -- PRIORIADE 1: Coleta Terrestre (Super Rápida)
     local checkList = {
         { Ativo = self.Config.FruitSniper or self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
         { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
@@ -133,65 +173,63 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- FUNÇÃO DE NAVEGAÇÃO CENTRALIZADA
-    local function checkAndNavigate(targetInstance, expectedIsland)
-        if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
-            self.CombatService:SmartIslandTeleport(expectedIsland)
-            return true
-        end
-        if not targetInstance then return false end
-        
-        if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
-            self.TargetManager:SetTarget(targetInstance)
-        else
-            self.TargetManager:SetInteractionTarget(targetInstance)
-        end
-        self.State = "NAVIGATING"
-        return true
-    end
-
-    -- 2. Lógica Refinada do Boss (Prioridade Máxima)
+    -- PRIORIADE 2: MÁQUINA DE ESTADOS DO BOSS
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         local bossTargetName = nil
+        
+        -- 3 - Varre a fila na ordem e ignora os que estão "Morto"
         for _, b in ipairs(self.Config.SelectedBosses) do
-            -- Procura o primeiro da fila que não esteja confirmado como "Dead"
-            if self.BossState[b] == "Alive" or not self.BossState[b] then bossTargetName = b; break end
+            if self.BossState[b] == "Pendente" or self.BossState[b] == "Vivo" or not self.BossState[b] then 
+                bossTargetName = b
+                if not self.BossState[b] then self.BossState[b] = "Pendente" end
+                break 
+            end
         end
         
+        -- Se achou alguém Pendente ou Vivo na lista...
         if bossTargetName then
             local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
             
-            -- Se o boss tá em outra ilha, teleporta e aborta essa rotina pra carregar a ilha em paz
+            -- 2 - Vai na ilha e seta o spawn primeiro (O Teleport já cuida disso)
             if targetIsland and self:GetCurrentIsland() ~= targetIsland then
                 self.BossPatience = 0
                 self.CombatService:SmartIslandTeleport(targetIsland)
                 return 
             end
 
-            -- Já estamos na ilha! Procura o boss no Workspace.
+            -- Estamos na ilha correta. Vamos procurar o modelo do Boss.
             local bTarget = self:FindMob("Boss", bossTargetName)
             
             if bTarget then
-                self.BossState[bossTargetName] = "Alive"
+                -- O boss está no mapa! Muda status para Vivo.
+                self.BossState[bossTargetName] = "Vivo"
                 self.BossPatience = 0
                 if checkAndNavigate(bTarget, targetIsland) then return end
             else
-                -- PACIÊNCIA REAL (Aguardando renderização do jogo)
+                -- O Boss não foi achado de cara. Vamos aguardar o mapa renderizar (Paciência)
                 self.BossPatience = self.BossPatience + deltaTime
-                if self.BossPatience > 5 then -- Se passar de 5 segundos e não spawnar, ele morreu mesmo.
-                    self.BossState[bossTargetName] = "Dead"
+                
+                if self.BossPatience > 5 then 
+                    -- Passou os 5s de verificação. Ele realmente não está aqui. Muda para Morto.
+                    self.BossState[bossTargetName] = "Morto"
                     self.BossPatience = 0
                     self.TargetManager:ClearTarget()
                 end
                 
-                -- Enquanto espera, descongela pra não travar o jogador atoa
+                -- Descongela o player para ele não ficar parado como uma estátua
                 self.CombatService:SetCharacterFrozen(false)
-                return -- Importante: Bloqueia a máquina pra ele não ir farmar Mobs enquanto espera o Boss
+                
+                -- BLOQUEIA A LEITURA DO CÓDIGO AQUI. 
+                -- Assim ele não vai tentar fazer missões enquanto verifica esse boss.
+                return 
             end
         end
+        
+        -- 4 - SE O CÓDIGO CHEGOU ATÉ AQUI, TODOS OS BOSSES DA LISTA ESTÃO "MORTO".
+        -- O script ignorou o bloco de boss acima e vai cair naturalmente para as missões/mobs abaixo!
     end
 
-    -- 3. Prioridade Missões/Level (Aqui ele cai quando o Boss morrer ou não tiver Boss na fila)
+    -- PRIORIADE 3: Missões / Auto Level Max
     if self.Config.AutoFarmMaxLevel or self.Config.AutoQuest then
         if self.Config.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
@@ -218,7 +256,7 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- 4. Prioridade Dummy/Farm Manual
+    -- PRIORIADE 4: Mobs Manuais e Dummy
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
         if checkAndNavigate(dummy, self:GetCurrentIsland()) then return end
@@ -228,7 +266,7 @@ function FSM:State_SEARCHING(deltaTime)
         if checkAndNavigate(mob, targetIsland) then return end
     end
     
-    -- 5. Lógica de Pulo de Ilhas (Hogyoku)
+    -- PRIORIADE 5: Pulo de Ilhas (Hogyoku Scan)
     local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
     if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
         local listaIlhas = self.Constants and self.Constants.QuestFilterOptions or {}
@@ -243,7 +281,7 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- Se nada foi selecionado, descongela o boneco
+    -- Se chegou aqui, nada está ativo. Deixa o player livre.
     self.CombatService:SetCharacterFrozen(false)
     self.State = "IDLE"
 end

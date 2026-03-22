@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎒 SERVICES: ItemCache.lua
--- Responsabilidade: Indexar itens do mapa e lidar com Fruit Sniper.
+-- Responsabilidade: Catalogar itens para prevenir loops de busca extrema.
 -- =====================================================================
 local ItemCache = {}
 ItemCache.__index = ItemCache
@@ -11,9 +11,7 @@ function ItemCache.new(workspaceInstance)
     self._connections = {}
     self.Cache = { Fruits = {}, Hogyokus = {}, Puzzles = {}, Chests = {} }
     self.Blacklist = {}
-    
-    -- Fruit Sniper Callback Injection (Setado pelo FSM)
-    self.OnFruitSpawned = nil
+    self.OnFruitSpawned = nil 
     
     for _, obj in ipairs(self.Workspace:GetDescendants()) do self:Categorize(obj) end
     

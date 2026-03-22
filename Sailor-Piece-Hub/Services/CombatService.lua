@@ -1,5 +1,5 @@
 -- =====================================================================
--- ⚔️ SERVICES: CombatService.lua (Limite 720 Studs + CurrentSpawnIsland)
+-- ⚔️ SERVICES: CombatService.lua
 -- =====================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -22,11 +22,7 @@ function CombatService.new(Constants, Config)
     self.CurrentTween = nil
     self.LastTweenTargetPos = nil
     
-    self.Remotes = {
-        Combat = nil,
-        Ability = nil,
-        Teleport = nil
-    }
+    self.Remotes = { Combat = nil, Ability = nil, Teleport = nil }
     self:LoadRemotes()
     return self
 end
@@ -45,41 +41,26 @@ function CombatService:SetCharacterFrozen(isFrozen)
     local hum = char:FindFirstChild("Humanoid")
     local hrp = char:FindFirstChild("HumanoidRootPart")
     if hum and hrp then
-        if isFrozen then
-            hrp.Velocity = Vector3.zero
-            hum.PlatformStand = true
-        else
-            hum.PlatformStand = false
-        end
+        if isFrozen then hrp.Velocity = Vector3.zero; hum.PlatformStand = true else hum.PlatformStand = false end
     end
 end
 
--- ==========================================
--- 🌍 SISTEMA DE TELEPORTE INTELIGENTE
--- ==========================================
 function CombatService:SmartIslandTeleport(islandName)
     if not islandName or islandName == "Eventos (Timed Bosses)" then return false end
     if tick() - self.LastTeleportTime < 3 then return false end 
     
     local dest = self.Constants.TeleportMap[islandName] or islandName
-    
     if self.Remotes.Teleport then
-        local char = LP.Character
-        local hrp = char and char:FindFirstChild("HumanoidRootPart")
-
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
         self:SetCharacterFrozen(true)
         
         self.Remotes.Teleport:FireServer(dest)
         self.LastTeleportTime = tick()
-        task.wait(1.5) -- Aguarda renderização básica do mapa pós-teleporte
+        task.wait(1.5) 
         
-        -- 🛡️ REGRA: Só tenta setar o spawn se mudamos de ilha
         if self.Config.CurrentSpawnIsland ~= islandName then
             local success = self:AutoSaveSpawn() 
-            if success then
-                self.Config.CurrentSpawnIsland = islandName
-            end
+            if success then self.Config.CurrentSpawnIsland = islandName end
         end
         
         self:SetCharacterFrozen(false)
@@ -96,7 +77,6 @@ function CombatService:AutoSaveSpawn()
         
         local closestPrompt, targetPart = nil, nil
         
-        -- LOOP DE ESPERA (Aguarda até 4 segundos pro mapa e o spawn renderizarem)
         for attempt = 1, 8 do
             local myPos = hrp.Position
             local minDist = math.huge
@@ -108,9 +88,7 @@ function CombatService:AutoSaveSpawn()
                         local part = obj.Parent
                         if part and part:IsA("BasePart") then
                             local dist = (part.Position - myPos).Magnitude
-                            if dist < 1500 then
-                                minDist = dist; closestPrompt = obj; targetPart = part
-                            end
+                            if dist < 1500 then minDist = dist; closestPrompt = obj; targetPart = part end
                         end
                     end
                 end
@@ -119,7 +97,6 @@ function CombatService:AutoSaveSpawn()
             task.wait(0.5)
         end
 
-        -- Se achou o Spawn, voa até ele e interage
         if closestPrompt and targetPart then
             self:SetCharacterFrozen(true)
             local distance = (hrp.Position - targetPart.Position).Magnitude
@@ -134,22 +111,19 @@ function CombatService:AutoSaveSpawn()
             hrp.Velocity = Vector3.zero
             task.wait(0.5)
             
-            if fireproximityprompt then 
+            -- FIX DE PROXIMITY PROMPT: Garante que é válido e habilitado
+            if closestPrompt and closestPrompt:IsA("ProximityPrompt") and closestPrompt.Enabled and fireproximityprompt then 
                 fireproximityprompt(closestPrompt)
                 task.wait(0.2)
                 fireproximityprompt(closestPrompt)
             end
             task.wait(0.5)
-            
             return true 
         end
     end)
     return false
 end
 
--- ==========================================
--- 🏃 MOVIMENTAÇÃO E ATAQUE
--- ==========================================
 function CombatService:MoveToTarget(targetInstance, customDistance)
     local char = LP.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
@@ -173,15 +147,16 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
         elseif positionType == "Atrás" then targetPos = targetPos - (targetHrp.CFrame.LookVector * dist)
         elseif positionType == "Abaixo" then targetPos = targetPos + Vector3.new(0, -dist, 0)
         else targetPos = targetPos + Vector3.new(0, dist, 0) end
-    else
+    elseif targetInstance:IsA("BasePart") then
         targetPos = targetInstance.Position
+    else
+        return false
     end
 
     local targetTargetPos = targetInstance:IsA("Model") and targetInstance:FindFirstChild("HumanoidRootPart") and targetInstance.HumanoidRootPart.Position or targetInstance.Position
     local targetCFrame = CFrame.new(targetPos, targetTargetPos)
     local distance = (hrp.Position - targetPos).Magnitude
     
-    -- 🛑 REGRA ESTRITA: Limite de 720 Studs. Retorna falso para FSM forçar teleporte.
     if distance > 720 then 
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
         self:SetCharacterFrozen(false)
@@ -192,11 +167,7 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
     
     if distance > 15 then
         if self.CurrentTween and self.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then
-            if self.LastTweenTargetPos and (self.LastTweenTargetPos - targetPos).Magnitude > 10 then
-                self.CurrentTween:Cancel()
-            else
-                return true -- Ainda está navegando
-            end
+            if self.LastTweenTargetPos and (self.LastTweenTargetPos - targetPos).Magnitude > 10 then self.CurrentTween:Cancel() else return true end
         end
 
         local tempo = distance / math.max(self.Config.TweenSpeed, 50)
@@ -205,10 +176,7 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
         self.CurrentTween:Play()
         return true
     else
-        if self.CurrentTween then 
-            self.CurrentTween:Cancel() 
-            self.CurrentTween = nil 
-        end
+        if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
         hrp.CFrame = targetCFrame
         hrp.Velocity = Vector3.zero
         return true

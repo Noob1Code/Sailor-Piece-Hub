@@ -76,17 +76,10 @@ print("✅ Comunidade Hub carregado com sucesso!")
 -- 7. Função de Limpeza (Teardown) chamada ao re-executar ou fechar a UI
 _G.ComunidadeHub_Cleanup = function()
     print("🧹 Encerrando instâncias anteriores do Hub...")
-    
-    -- Para o loop principal imediatamente
     if mainConnection then mainConnection:Disconnect() end
-    
-    -- Avisa o sistema para parar
     if Config and Config.IsRunning ~= nil then Config.IsRunning = false end
-    
-    -- Destrói a interface gráfica
+    if FSM and typeof(FSM.Destroy) == "function" then FSM:Destroy() end 
     if UI and typeof(UI.Destroy) == "function" then UI:Destroy() end
-    
-    -- Limpa conexões pendentes para evitar memory leaks
     if ItemCache and typeof(ItemCache.Destroy) == "function" then ItemCache:Destroy() end
     if TargetManager and typeof(TargetManager.Destroy) == "function" then TargetManager:Destroy() end
 end

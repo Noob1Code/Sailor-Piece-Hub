@@ -52,7 +52,7 @@ local TargetManager = requireModule("Services/TargetManager").new()
 local CombatService = requireModule("Services/CombatService").new(Constants, Config)
 
 -- 5. Nível 3: Lógica Central (Cérebro) e Interface Visual
-local FSM = requireModule("Logic/FSM").new(TargetManager, Config, CombatService, ItemCache)
+local FSM = requireModule("Logic/FSM").new(TargetManager, Config, CombatService, ItemCache, Constants)
 local UI = requireModule("UI/Interface").new(Config, FSM, Constants)
 
 -- =====================================================================

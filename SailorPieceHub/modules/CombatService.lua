@@ -24,6 +24,18 @@ function CombatService:_freezeCharacter(char)
     if hrp and hum then hrp.Velocity = Vector3.zero; hum.PlatformStand = true end
 end
 
+function CombatService:ResetMovement()
+    local char = GameServices.LocalPlayer.Character
+    if char then
+        local hum = char:FindFirstChild("Humanoid")
+        if hum then hum.PlatformStand = false end
+    end
+    if self._currentTween then
+        self._currentTween:Cancel()
+        self._currentTween = nil
+    end
+end
+
 function CombatService:_equipWeapon()
     local char = GameServices.LocalPlayer.Character
     local backpack = GameServices.LocalPlayer:FindFirstChild("Backpack")

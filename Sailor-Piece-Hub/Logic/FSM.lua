@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Boss Assíncrono)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Correção de Posição)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -62,16 +62,12 @@ function FSM:_InitChatMonitor()
         if msg:find("spawned") or msg:find("apareceu") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-                if msg:find(baseName) then 
-                    self.BossState[bossName] = "Pendente"
-                end
+                if msg:find(baseName) then self.BossState[bossName] = "Pendente" end
             end
         elseif msg:find("defeated") or msg:find("foiderrotado") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-                if msg:find(baseName) then 
-                    self.BossState[bossName] = "Morto"
-                end
+                if msg:find(baseName) then self.BossState[bossName] = "Morto" end
             end
         end
     end
@@ -88,11 +84,8 @@ end
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
     
-    -- Reseta os estados se ligou AutoBoss agora
     if self.Config.AutoBoss and not self.LastAutoBossState then
-        for _, b in ipairs(self.Config.SelectedBosses) do
-            self.BossState[b] = "Pendente"
-        end
+        for _, b in ipairs(self.Config.SelectedBosses) do self.BossState[b] = "Pendente" end
     end
     self.LastAutoBossState = self.Config.AutoBoss
     
@@ -134,14 +127,28 @@ function FSM:State_SEARCHING(deltaTime)
         local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
         if not hrp then return false end
         
-        local targetPos = targetInstance:IsA("Model") and targetInstance.PrimaryPart and targetInstance.PrimaryPart.Position or targetInstance.Position
+        -- FIX DO POSITION: Garante que acha a posição de BasePart mesmo que não tenha PrimaryPart
+        local targetPos
+        if targetInstance:IsA("Model") then
+            if targetInstance.PrimaryPart then
+                targetPos = targetInstance.PrimaryPart.Position
+            else
+                local part = targetInstance:FindFirstChildWhichIsA("BasePart", true)
+                if part then targetPos = part.Position else return false end
+            end
+        elseif targetInstance:IsA("BasePart") then
+            targetPos = targetInstance.Position
+        else
+            return false
+        end
+        
         local dist = (hrp.Position - targetPos).Magnitude
         
-        -- 🛑 REGRA CRÍTICA: Se a ilha for diferente OU distância maior que 720, Força o Teleporte.
+        -- FIX DO TELEPORTE: Se acionar o TP, retorna FALSE para impedir navegação cega
         if (expectedIsland and self:GetCurrentIsland() ~= expectedIsland) or dist > 720 then
             local destIsland = expectedIsland or self:GetCurrentIsland()
             self.CombatService:SmartIslandTeleport(destIsland)
-            return true
+            return false -- ANTES ESTAVA TRUE, O QUE FAZIA O BONECO VOAR
         end
         
         if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
@@ -174,40 +181,28 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- 2. Máquina de Estados do Boss (Totalmente Assíncrona)
+    -- 2. Máquina de Estados do Boss
     local actOnBoss = false
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         for _, bossTargetName in ipairs(self.Config.SelectedBosses) do
             if self.BossState[bossTargetName] == "Pendente" or self.BossState[bossTargetName] == "Vivo" or not self.BossState[bossTargetName] then 
-                
                 local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
-                
-                -- Se não estiver na ilha, vai para lá investigar
                 if targetIsland and self:GetCurrentIsland() ~= targetIsland then
                     self.CombatService:SmartIslandTeleport(targetIsland)
-                    actOnBoss = true
-                    break
+                    actOnBoss = true; break
                 end
 
-                -- Já estamos na ilha, vamos caçar o boss
-                local bTarget = self:FindMob("Boss", bossTargetName)
-                
+                local bTarget = self:FindMob("Boss", bossTargetName, targetIsland)
                 if bTarget then
                     self.BossState[bossTargetName] = "Vivo"
-                    if checkAndNavigate(bTarget, targetIsland) then 
-                        actOnBoss = true
-                        break 
-                    end
+                    if checkAndNavigate(bTarget, targetIsland) then actOnBoss = true; break end
                 else
-                    -- BOSS NÃO ENCONTRADO! Marca como morto e não bloqueia o fluxo do script.
                     self.BossState[bossTargetName] = "Morto"
                     self.TargetManager:ClearTarget()
                 end
             end
         end
     end
-    
-    -- Se estava trabalhando com algum Boss, encerra a checagem por aqui.
     if actOnBoss then return end
 
     -- 3. Missões e Level
@@ -231,23 +226,31 @@ function FSM:State_SEARCHING(deltaTime)
                 local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(qData.NPC)
                 if checkAndNavigate(npc, npcIsland) then return end
             else
-                local mob = self:FindMob(qData.Type or "Mob", qData.Target)
+                local mob = self:FindMob(qData.Type or "Mob", qData.Target, mobIsland)
                 if checkAndNavigate(mob, mobIsland) then return end
             end
         end
     end
 
-    -- 4. Dummy e Mob (Fallback Base)
+    -- 4. Dummy e Mob (Com FIX para opção "Todos")
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
         if checkAndNavigate(dummy, self:GetCurrentIsland()) then return end
     elseif self.Config.AutoFarm and self.Config.SelectedMob ~= "Nenhum" then
-        local targetIsland = self:GetIslandByTarget("Mob", self.Config.SelectedMob)
-        local mob = self:FindMob("Mob", self.Config.SelectedMob)
-        if checkAndNavigate(mob, targetIsland) then return end
+        
+        local expectedIsland
+        if self.Config.SelectedMob == "Todos" then
+            expectedIsland = self.Config.SelectedIslandFilter
+            if not expectedIsland or expectedIsland == "Todas" then expectedIsland = self:GetCurrentIsland() end
+        else
+            expectedIsland = self:GetIslandByTarget("Mob", self.Config.SelectedMob)
+        end
+
+        local mob = self:FindMob("Mob", self.Config.SelectedMob, expectedIsland)
+        if checkAndNavigate(mob, expectedIsland) then return end
     end
     
-    -- 5. Hogyoku Pulo Ilhas (Apenas se oco)
+    -- 5. Hogyoku Pulo Ilhas
     local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
     if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
         local listaIlhas = self.Constants and self.Constants.QuestFilterOptions or {}
@@ -262,7 +265,6 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- Liberação Final Absoluta (Se não há tarefas, descongela)
     self.CombatService:SetCharacterFrozen(false)
     self.State = "IDLE"
 end
@@ -272,13 +274,12 @@ function FSM:State_NAVIGATING()
     local interactTarget = self.TargetManager:GetInteractionTarget()
     
     if not combatTarget and not interactTarget then 
-        self.CombatService:SetCharacterFrozen(false) -- Prevenção Anti-Freeze
+        self.CombatService:SetCharacterFrozen(false)
         self.State = "SEARCHING"
         return 
     end
     
     if combatTarget then
-        -- MoveToTarget retorna True se estiver na posição ou false se precisar usar Tween/Teleport
         if self.CombatService:MoveToTarget(combatTarget) then self.State = "ATTACKING" end
     elseif interactTarget then
         if self.CombatService:MoveToTarget(interactTarget, 1.5) then self.State = "COLLECTING" end
@@ -288,12 +289,11 @@ end
 function FSM:State_ATTACKING()
     local target = self.TargetManager:GetTarget()
     if not target then 
-        self.CombatService:SetCharacterFrozen(false) -- Prevenção Anti-Freeze
+        self.CombatService:SetCharacterFrozen(false)
         self.State = "SEARCHING"
         return 
     end
     
-    -- Se tentar dar fallback do range, retorna a navegar
     if not self.CombatService:MoveToTarget(target) then 
         self.State = "NAVIGATING"
         return 
@@ -328,8 +328,8 @@ function FSM:State_COLLECTING()
                 local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true) or (item.Parent and item.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
                 local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
                 
-                if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-                if clicker and fireclickdetector then fireclickdetector(clicker) end
+                if prompt and prompt:IsA("ProximityPrompt") and prompt.Enabled and fireproximityprompt then fireproximityprompt(prompt) end
+                if clicker and clicker:IsA("ClickDetector") and fireclickdetector then fireclickdetector(clicker) end
                 
                 self.ItemCache:IgnoreItem(item)
                 self.TargetManager:ClearInteractionTarget()
@@ -344,7 +344,7 @@ function FSM:State_COLLECTING()
     end)
 end
 
-function FSM:FindMob(typeStr, name)
+function FSM:FindMob(typeStr, name, expectedIsland)
     local char = LP.Character
     local hrp = char and char:FindFirstChild("HumanoidRootPart")
     if not hrp then return nil end
@@ -361,7 +361,17 @@ function FSM:FindMob(typeStr, name)
                 local isBoss = npc.Name:lower():find("boss") or npc:GetAttribute("Boss")
                 if not isBoss then
                     local baseName = npc.Name:gsub("%d+", "")
-                    if name == "Todos" or baseName == name then 
+                    local isValidMob = false
+                    
+                    -- FIX DA OPÇÃO "TODOS": Garante que o Mob pertence à ilha que o jogador quer
+                    if name == "Todos" then
+                        local mobIsland = self:GetIslandByTarget("Mob", baseName)
+                        if mobIsland == expectedIsland or expectedIsland == "Todas" then isValidMob = true end
+                    elseif baseName == name then
+                        isValidMob = true
+                    end
+
+                    if isValidMob then 
                         local part = npc:FindFirstChild("HumanoidRootPart")
                         if part then local dist = (myPos - part.Position).Magnitude; if dist < minDist then minDist = dist; closest = npc end end
                     end
@@ -407,9 +417,7 @@ function FSM:GetCurrentIsland()
         local ascendNPC = serviceNPCs:FindFirstChild("AscendNPC")
         if ascendNPC then
             local pos = ascendNPC:IsA("Model") and ascendNPC.PrimaryPart and ascendNPC.PrimaryPart.Position or (ascendNPC:IsA("BasePart") and ascendNPC.Position) or Vector3.new(252, 4, 715)
-            if (myPos - pos).Magnitude < 1500 then
-                return "Sailor"
-            end
+            if (myPos - pos).Magnitude < 1500 then return "Sailor" end
         end
     end
 

@@ -1,8 +1,3 @@
--- =========================================================================
--- 🗺️ TeleportService
--- Gerencia as viagens entre ilhas, salvar spawn e banco de dados de Mobs/Bosses.
--- =========================================================================
-
 local GameServices = Import("core/GameServices")
 local Remotes = Import("core/Remotes")
 local TweenUtil = Import("utils/TweenUtil")
@@ -10,7 +5,6 @@ local TweenUtil = Import("utils/TweenUtil")
 local TeleportService = {}
 TeleportService.__index = TeleportService
 
--- Banco de Dados de Ilhas EXATO do seu jogo original
 local IslandData = {
     ["Starter"] = { Mobs = {"Thief"}, Bosses = {"ThiefBoss"} },
     ["Jungle"] = { Mobs = {"Monkey"}, Bosses = {"MonkeyBoss"} },
@@ -28,100 +22,126 @@ local IslandData = {
     ["Eventos (Timed Bosses)"] = { Mobs = {}, Bosses = {"MadokaBoss", "Rimuru"} }
 }
 
+local TeleportMap = {
+    ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert",
+    ["Snow"] = "Snow", ["Sailor"] = "Sailor", ["Shibuya"] = "Shibuya",
+    ["Hueco Mundo"] = "HuecoMundo", ["Boss Island"] = "Boss", ["Dungeon"] = "Dungeon",
+    ["Shinjuku"] = "Shinjuku", ["Slime"] = "Slime", ["Academy"] = "Academy",
+    ["Judgement"] = "Judgement", ["Soul Society"] = "SoulSociety",
+    ["Eventos (Timed Bosses)"] = "Eventos"
+}
+
 function TeleportService.new()
     local self = setmetatable({
         _lastTeleport = 0,
-        _isSavingSpawn = false -- Flag para evitar que o farm ataque enquanto salvamos o spawn
+        _isBusy = false
     }, TeleportService)
     return self
 end
 
--- =========================================================================
--- BANCO DE DADOS (GETTERS)
--- =========================================================================
-
 function TeleportService:GetIslands()
     local list = {}
-    for island, _ in pairs(IslandData) do
-        table.insert(list, island)
-    end
+    for island, _ in pairs(IslandData) do table.insert(list, island) end
     table.sort(list)
     return list
 end
 
 function TeleportService:GetMobsFromIsland(islandName)
-    if IslandData[islandName] and IslandData[islandName].Mobs then
-        if #IslandData[islandName].Mobs > 0 then
-            return IslandData[islandName].Mobs
-        end
-    end
+    if IslandData[islandName] and IslandData[islandName].Mobs then return IslandData[islandName].Mobs end
     return {"Nenhum"}
 end
 
 function TeleportService:GetIslandByMob(mobName)
-    for island, data in pairs(IslandData) do
-        if table.find(data.Mobs, mobName) then
-            return island
-        end
-    end
+    for island, data in pairs(IslandData) do if table.find(data.Mobs, mobName) then return island end end
     return nil
 end
 
 function TeleportService:GetIslandByBoss(bossName)
-    for island, data in pairs(IslandData) do
-        if table.find(data.Bosses, bossName) then
-            return island
-        end
-    end
+    for island, data in pairs(IslandData) do if table.find(data.Bosses, bossName) then return island end end
     return nil
 end
 
--- =========================================================================
--- CONTROLE DE VIAGEM E SPAWN
--- =========================================================================
-
--- Diz aos outros serviços se o jogador está ocupado salvando o spawn
-function TeleportService:IsSavingSpawn()
-    return self._isSavingSpawn
+function TeleportService:IsBusy()
+    return self._isBusy
 end
 
-function TeleportService:TeleportToIsland(islandName)
-    if not islandName then return end
+function TeleportService:GetCurrentIsland()
+    local char = GameServices.LocalPlayer.Character
+    if not char or not char:FindFirstChild("HumanoidRootPart") then return nil end
+    local myPos = char.HumanoidRootPart.Position
+    local closestIsland = nil
+    local minDist = math.huge
     
-    if tick() - self._lastTeleport > 4 then
-        if Remotes.TeleportRemote then
-            Remotes.TeleportRemote:FireServer(islandName)
-            self._lastTeleport = tick()
-            print("🗺️ Viajando para a ilha: " .. islandName)
+    local npcsFolder = GameServices.Workspace:FindFirstChild("NPCs")
+    if npcsFolder then
+        for _, npc in pairs(npcsFolder:GetChildren()) do
+            local hrp = npc:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                local dist = (myPos - hrp.Position).Magnitude
+                if dist < minDist then
+                    local baseName = npc.Name:gsub("%d+", "")
+                    local island = self:GetIslandByMob(baseName) or self:GetIslandByBoss(baseName) or self:GetIslandByBoss(npc.Name)
+                    if island and island ~= "Eventos (Timed Bosses)" then 
+                        minDist = dist; closestIsland = island 
+                    end
+                end
+            end
         end
     end
+    return closestIsland
 end
 
--- Lógica convertida do AutoSaveSpawn original (Assíncrona para não travar o Hub)
-function TeleportService:SaveSpawn(tweenSpeed)
-    if self._isSavingSpawn then return end
+function TeleportService:SmartTeleport(islandName, tweenSpeed)
+    if self._isBusy then return end
+    self._isBusy = true
+    
+    task.spawn(function()
+        local dest = TeleportMap[islandName] or islandName
+        if Remotes.TeleportRemote then
+            local char = GameServices.LocalPlayer.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local oldPos = hrp and hrp.Position or Vector3.zero
 
+            TweenUtil.StopTween(hrp)
+            if char and char:FindFirstChild("Humanoid") then
+                char.Humanoid.PlatformStand = false
+            end
+
+            Remotes.TeleportRemote:FireServer(dest)
+            print("🗺️ Viajando para a ilha: " .. islandName)
+
+            if hrp then
+                for i = 1, 15 do
+                    task.wait(0.5)
+                    if (hrp.Position - oldPos).Magnitude > 200 then break end
+                end
+            else
+                task.wait(3)
+            end
+            
+            task.wait(1.5)
+            self:_executeSaveSpawn(tweenSpeed)
+        end
+        self._isBusy = false
+    end)
+end
+
+function TeleportService:_executeSaveSpawn(tweenSpeed)
     local char = GameServices.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     
     local hrp = char.HumanoidRootPart
-    local myPos = hrp.Position
-
     local closestPrompt = nil
     local targetPart = nil
     local minDist = math.huge
 
-    -- Busca o cristal de spawn mais próximo (Baseado na sua lógica original)
     for _, obj in pairs(GameServices.Workspace:GetDescendants()) do
         if obj:IsA("ProximityPrompt") then
             local actionText = string.lower(obj.ActionText)
-            local promptName = obj.Name
-            
-            -- Reconhece tanto o Checkpoint padrão do Roblox quanto os SpawnPointCrystals do seu jogo
-            if promptName == "CheckpointPrompt" or actionText == "set spawn" or obj.Parent.Name:find("SpawnPointCrystal") then
+            if obj.Name == "CheckpointPrompt" or actionText == "set spawn" or (obj.Parent and obj.Parent.Name:find("SpawnPointCrystal")) then
                 local part = obj.Parent
                 if part and part:IsA("BasePart") then
-                    local dist = (part.Position - myPos).Magnitude
+                    local dist = (part.Position - hrp.Position).Magnitude
                     if dist < minDist and dist < 800 then
                         minDist = dist
                         closestPrompt = obj
@@ -133,39 +153,21 @@ function TeleportService:SaveSpawn(tweenSpeed)
     end
 
     if closestPrompt and targetPart then
-        self._isSavingSpawn = true
-        print("🚩 Iniciando AutoSaveSpawn...")
-
-        -- Voa até o cristal
+        print("🚩 Salvando Spawn...")
         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
-        local tween = TweenUtil.MoveToPosition(char, targetPos, tweenSpeed or 150)
         
-        if tween then
-            -- Quando a animação terminar, clica no botão (Tudo em background sem travar)
-            tween.Completed:Connect(function()
-                task.wait(0.2)
-                if fireproximityprompt then 
-                    fireproximityprompt(closestPrompt)
-                    task.wait(0.2)
-                    fireproximityprompt(closestPrompt)
-                end
-                print("✅ Spawn Salvo!")
-                self._isSavingSpawn = false
-            end)
-        else
-            -- Fallback se o Tween falhar
-            hrp.CFrame = CFrame.new(targetPos)
-            task.wait(0.5)
-            if fireproximityprompt then 
-                fireproximityprompt(closestPrompt)
-                task.wait(0.2)
-                fireproximityprompt(closestPrompt)
-            end
-            print("✅ Spawn Salvo (TP Direto)!")
-            self._isSavingSpawn = false
+        local dist = (hrp.Position - targetPos).Magnitude
+        local tInfo = TweenInfo.new(math.max(0.1, dist / (tweenSpeed or 150)), Enum.EasingStyle.Linear)
+        local tw = GameServices.TweenService:Create(hrp, tInfo, {CFrame = CFrame.new(targetPos)})
+        tw:Play()
+        tw.Completed:Wait()
+        
+        task.wait(0.3)
+        if fireproximityprompt then 
+            fireproximityprompt(closestPrompt)
+            task.wait(0.2)
+            fireproximityprompt(closestPrompt)
         end
-    else
-        -- print("⚠️ Nenhum Cristal de Spawn encontrado num raio de 800 studs.")
     end
 end
 

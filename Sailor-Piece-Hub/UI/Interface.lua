@@ -1,250 +1,313 @@
 -- =====================================================================
--- 🖥️ UI: Interface.lua (REVISADA E CORRIGIDA)
+-- 🎨 INTERFACE DO USUÁRIO (UI) - Sailor Piece Hub
 -- =====================================================================
 
-local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
-local UserInputService = game:GetService("UserInputService")
+local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
-local LP = Players.LocalPlayer
 
-local Interface = {}
-Interface.__index = Interface
-
-local Theme = {
-    Bg = Color3.fromRGB(15, 15, 15),
-    Sidebar = Color3.fromRGB(10, 10, 10),
-    Accent = Color3.fromRGB(30, 160, 255),
-    Element = Color3.fromRGB(25, 25, 25),
-    ElementHover = Color3.fromRGB(35, 35, 35),
-    Text = Color3.fromRGB(240, 240, 240),
-    TextDim = Color3.fromRGB(160, 160, 160),
-    Corner = UDim.new(0, 6)
+-- Simulação de carregamento do módulo de configurações e constantes
+-- No ambiente real, substitua pelas chamadas require corretas
+local Config = _G.HubConfig or {} 
+local Constants = _G.HubConstants or {
+    FilterOptions = {"Todas", "Starter"},
+    StatsList = {"Melee", "Defense", "Sword", "Power"},
+    Islands = {"Starter", "Jungle", "Desert"}
 }
 
-function Interface.new(Config, FSM, Constants)
-    local self = setmetatable({}, Interface)
-    self.Config = Config
-    self.FSM = FSM
-    self.Constants = Constants
-    self.Tabs = {}
-    self.TabButtons = {}
-    self.ActiveTab = nil
-    self._Connections = {}
-
-    self:BuildFramework()
-    self:CreateTabs()
-    
-    -- Seleciona Dashboard por padrão
-    if self.Tabs["Dashboard"] then self:SelectTab("Dashboard") end
-    
-    return self
+-- Prevenção de sobreposição
+if CoreGui:FindFirstChild("ComunidadeHubUI") then
+    CoreGui.ComunidadeHubUI:Destroy()
 end
 
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "ComunidadeHubUI"
+ScreenGui.Parent = CoreGui
+ScreenGui.ResetOnSpawn = false
+
+-- Tema de Cores
+local Theme = {
+    Background = Color3.fromRGB(25, 25, 25),
+    Sidebar = Color3.fromRGB(35, 35, 35),
+    Component = Color3.fromRGB(45, 45, 45),
+    Accent = Color3.fromRGB(0, 195, 255),
+    Text = Color3.fromRGB(255, 255, 255),
+    TextDim = Color3.fromRGB(180, 180, 180)
+}
+
+-- Container Principal
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 550, 0, 350)
+MainFrame.Position = UDim2.new(0.5, -275, 0.5, -175)
+MainFrame.BackgroundColor3 = Theme.Background
+MainFrame.BorderSizePixel = 0
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+
+local MainUICorner = Instance.new("UICorner")
+MainUICorner.CornerRadius = UDim.new(0, 8)
+MainUICorner.Parent = MainFrame
+
+-- Título
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 35)
+Title.BackgroundTransparency = 1
+Title.Text = "  SAILOR PIECE HUB"
+Title.TextColor3 = Theme.Accent
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 16
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = MainFrame
+
+-- Barra Lateral (Sidebar)
+local Sidebar = Instance.new("ScrollingFrame")
+Sidebar.Size = UDim2.new(0, 140, 1, -35)
+Sidebar.Position = UDim2.new(0, 0, 0, 35)
+Sidebar.BackgroundColor3 = Theme.Sidebar
+Sidebar.BorderSizePixel = 0
+Sidebar.ScrollBarThickness = 2
+Sidebar.Parent = MainFrame
+
+local SidebarLayout = Instance.new("UIListLayout")
+SidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+SidebarLayout.Parent = Sidebar
+
+-- Área de Conteúdo
+local ContentArea = Instance.new("Frame")
+ContentArea.Size = UDim2.new(1, -140, 1, -35)
+ContentArea.Position = UDim2.new(0, 140, 0, 35)
+ContentArea.BackgroundTransparency = 1
+ContentArea.Parent = MainFrame
+
+-- Variáveis de Estado da UI
+local activeTabBtn = nil
+local tabs = {}
+
 -- ==========================================
--- 🏗️ CORE FRAMEWORK & DRAGGING
+-- 🛠️ FUNÇÕES CONSTRUTORAS DE COMPONENTES
 -- ==========================================
-function Interface:BuildFramework()
-    local old = CoreGui:FindFirstChild("SailorPieceHub_V2") or LP.PlayerGui:FindFirstChild("SailorPieceHub_V2")
-    if old then old:Destroy() end
 
-    self.ScreenGui = Instance.new("ScreenGui")
-    self.ScreenGui.Name = "SailorPieceHub_V2"
-    self.ScreenGui.ResetOnSpawn = false
-    pcall(function() self.ScreenGui.Parent = CoreGui end)
-    if not self.ScreenGui.Parent then self.ScreenGui.Parent = LP.PlayerGui end
+local function CreateTab(name)
+    local tabBtn = Instance.new("TextButton")
+    tabBtn.Size = UDim2.new(1, 0, 0, 35)
+    tabBtn.BackgroundColor3 = Theme.Sidebar
+    tabBtn.BorderSizePixel = 0
+    tabBtn.Text = name
+    tabBtn.TextColor3 = Theme.TextDim
+    tabBtn.Font = Enum.Font.GothamSemibold
+    tabBtn.TextSize = 14
+    tabBtn.Parent = Sidebar
 
-    self.MainFrame = Instance.new("Frame")
-    self.MainFrame.Size = UDim2.new(0, 600, 0, 400)
-    self.MainFrame.Position = UDim2.new(0.5, -300, 0.5, -200)
-    self.MainFrame.BackgroundColor3 = Theme.Bg
-    self.MainFrame.BorderSizePixel = 0
-    self.MainFrame.Parent = self.ScreenGui
-    Instance.new("UICorner", self.MainFrame).CornerRadius = Theme.Corner
+    local page = Instance.new("ScrollingFrame")
+    page.Size = UDim2.new(1, 0, 1, 0)
+    page.BackgroundTransparency = 1
+    page.ScrollBarThickness = 4
+    page.Visible = false
+    page.Parent = ContentArea
 
-    self.Sidebar = Instance.new("Frame")
-    self.Sidebar.Size = UDim2.new(0, 150, 1, 0)
-    self.Sidebar.BackgroundColor3 = Theme.Sidebar
-    self.Sidebar.BorderSizePixel = 0
-    self.Sidebar.Parent = self.MainFrame
-    Instance.new("UICorner", self.Sidebar).CornerRadius = Theme.Corner
+    local pageLayout = Instance.new("UIListLayout")
+    pageLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    pageLayout.Padding = UDim.new(0, 8)
+    pageLayout.Parent = page
 
-    local layout = Instance.new("UIListLayout", self.Sidebar)
-    layout.Padding = UDim.new(0, 2)
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+    local pagePadding = Instance.new("UIPadding")
+    pagePadding.PaddingTop = UDim.new(0, 10)
+    pagePadding.PaddingLeft = UDim.new(0, 10)
+    pagePadding.PaddingRight = UDim.new(0, 15)
+    pagePadding.Parent = page
 
-    self.Container = Instance.new("Frame")
-    self.Container.Size = UDim2.new(1, -160, 1, -10)
-    self.Container.Position = UDim2.new(0, 155, 0, 5)
-    self.Container.BackgroundTransparency = 1
-    self.Container.Parent = self.MainFrame
-
-    self:ApplyDrag(self.MainFrame)
-end
-
-function Interface:ApplyDrag(frame)
-    local dragging, dragInput, dragStart, startPos
-    frame.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 then
-            dragging = true
-            dragStart = input.Position
-            startPos = frame.Position
-            input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then dragging = false end
-            end)
+    tabBtn.MouseButton1Click:Connect(function()
+        if activeTabBtn then
+            activeTabBtn.TextColor3 = Theme.TextDim
+            activeTabBtn.BackgroundColor3 = Theme.Sidebar
+            tabs[activeTabBtn.Text].Visible = false
         end
+        tabBtn.TextColor3 = Theme.Accent
+        tabBtn.BackgroundColor3 = Theme.Component
+        page.Visible = true
+        activeTabBtn = tabBtn
     end)
-    UserInputService.InputChanged:Connect(function(input)
-        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-            local delta = input.Position - dragStart
-            frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-        end
-    end)
+
+    tabs[name] = page
+    return page
 end
 
--- ==========================================
--- 🧊 COMPONENTES DE UI
--- ==========================================
-function Interface:SelectTab(name)
-    for tName, tFrame in pairs(self.Tabs) do
-        tFrame.Visible = (tName == name)
-        local btn = self.TabButtons[tName]
-        if btn then
-            TweenService:Create(btn, TweenInfo.new(0.2), {
-                BackgroundColor3 = (tName == name) and Theme.Element or Theme.Sidebar,
-                BackgroundTransparency = (tName == name) and 0 or 1
-            }):Play()
+local function CreateToggle(parent, text, configKey, subTable)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 35)
+    frame.BackgroundColor3 = Theme.Component
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
+
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -50, 1, 0)
+    label.Position = UDim2.new(0, 10, 0, 0)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Theme.Text
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
+
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 40, 0, 20)
+    btn.Position = UDim2.new(1, -50, 0.5, -10)
+    btn.BackgroundColor3 = Theme.Background
+    btn.Text = ""
+    btn.Parent = frame
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
+
+    local indicator = Instance.new("Frame")
+    indicator.Size = UDim2.new(0, 16, 0, 16)
+    indicator.Position = UDim2.new(0, 2, 0.5, -8)
+    indicator.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    indicator.Parent = btn
+    Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 4)
+
+    local state = false
+
+    local function updateState()
+        state = not state
+        
+        -- Atualiza Config
+        if subTable then
+            if not Config[subTable] then Config[subTable] = {} end
+            Config[subTable][configKey] = state
+        else
+            Config[configKey] = state
+        end
+
+        -- Atualiza Visual
+        if state then
+            TweenService:Create(indicator, TweenInfo.new(0.2), {Position = UDim2.new(1, -18, 0.5, -8), BackgroundColor3 = Theme.Accent}):Play()
+        else
+            TweenService:Create(indicator, TweenInfo.new(0.2), {Position = UDim2.new(0, 2, 0.5, -8), BackgroundColor3 = Color3.fromRGB(200, 50, 50)}):Play()
         end
     end
-    self.ActiveTab = name
+
+    btn.MouseButton1Click:Connect(updateState)
 end
 
-function Interface:AddTab(name)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.9, 0, 0, 30)
-    btn.BackgroundColor3 = Theme.Sidebar
-    btn.BackgroundTransparency = 1
-    btn.Text = name
-    btn.Font = Enum.Font.GothamMedium
-    btn.TextColor3 = Theme.Text
-    btn.Parent = self.Sidebar
-    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 4)
-    btn.MouseButton1Click:Connect(function() self:SelectTab(name) end)
-    self.TabButtons[name] = btn
+local function CreateSlider(parent, text, min, max, configKey)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 0, 50)
+    frame.BackgroundColor3 = Theme.Component
+    frame.Parent = parent
+    Instance.new("UICorner", frame).CornerRadius = UDim.new(0, 6)
 
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Size = UDim2.new(1, 0, 1, 0)
-    scroll.BackgroundTransparency = 1
-    scroll.ScrollBarThickness = 2
-    scroll.Visible = false
-    scroll.Parent = self.Container
-    local layout = Instance.new("UIListLayout", scroll)
-    layout.Padding = UDim.new(0, 5)
-    layout.HorizontalAlignment = Enum.HorizontalAlignment.Center
-    
-    self.Tabs[name] = scroll
-    return scroll
-end
+    local label = Instance.new("TextLabel")
+    label.Size = UDim2.new(1, -10, 0, 20)
+    label.Position = UDim2.new(0, 10, 0, 5)
+    label.BackgroundTransparency = 1
+    label.Text = text
+    label.TextColor3 = Theme.Text
+    label.Font = Enum.Font.Gotham
+    label.TextSize = 14
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Parent = frame
 
-function Interface:CreateToggle(parent, text, configKey, callback)
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0.95, 0, 0, 32)
-    btn.BackgroundColor3 = Theme.Element
-    btn.Text = "  " .. text
-    btn.Font = Enum.Font.Gotham
-    btn.TextColor3 = Theme.TextDim
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Parent = parent
-    Instance.new("UICorner", btn).CornerRadius = Theme.Corner
+    local valLabel = Instance.new("TextLabel")
+    valLabel.Size = UDim2.new(0, 50, 0, 20)
+    valLabel.Position = UDim2.new(1, -60, 0, 5)
+    valLabel.BackgroundTransparency = 1
+    valLabel.Text = tostring(Config[configKey] or min)
+    valLabel.TextColor3 = Theme.Accent
+    valLabel.Font = Enum.Font.GothamBold
+    valLabel.TextSize = 14
+    valLabel.TextXAlignment = Enum.TextXAlignment.Right
+    valLabel.Parent = frame
 
-    local status = Instance.new("Frame")
-    status.Size = UDim2.new(0, 20, 0, 20)
-    status.Position = UDim2.new(1, -30, 0.5, -10)
-    status.BackgroundColor3 = self.Config[configKey] and Theme.Accent or Color3.fromRGB(40,40,40)
-    status.Parent = btn
-    Instance.new("UICorner", status).CornerRadius = UDim.new(1, 0)
+    local sliderBG = Instance.new("TextButton")
+    sliderBG.Size = UDim2.new(1, -20, 0, 8)
+    sliderBG.Position = UDim2.new(0, 10, 0, 30)
+    sliderBG.BackgroundColor3 = Theme.Background
+    sliderBG.Text = ""
+    sliderBG.AutoButtonColor = false
+    sliderBG.Parent = frame
+    Instance.new("UICorner", sliderBG).CornerRadius = UDim.new(0, 4)
 
-    btn.MouseButton1Click:Connect(function()
-        self.Config[configKey] = not self.Config[configKey]
-        status.BackgroundColor3 = self.Config[configKey] and Theme.Accent or Color3.fromRGB(40,40,40)
-        if callback then callback(self.Config[configKey]) end
-    end)
-end
+    local fill = Instance.new("Frame")
+    fill.Size = UDim2.new(0, 0, 1, 0)
+    fill.BackgroundColor3 = Theme.Accent
+    fill.Parent = sliderBG
+    Instance.new("UICorner", fill).CornerRadius = UDim.new(0, 4)
 
-function Interface:CreateDropdown(parent, text, options, configKey, callback)
-    local base = Instance.new("Frame")
-    base.Size = UDim2.new(0.95, 0, 0, 32)
-    base.BackgroundColor3 = Theme.Element
-    base.Parent = parent
-    Instance.new("UICorner", base).CornerRadius = Theme.Corner
+    -- Lógica simples de drag do slider
+    local dragging = false
+    local function updateSlider(input)
+        local relX = math.clamp((input.Position.X - sliderBG.AbsolutePosition.X) / sliderBG.AbsoluteSize.X, 0, 1)
+        local val = math.floor(min + (max - min) * relX)
+        fill.Size = UDim2.new(relX, 0, 1, 0)
+        valLabel.Text = tostring(val)
+        Config[configKey] = val
+    end
 
-    local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(1, 0, 1, 0)
-    btn.BackgroundTransparency = 1
-    btn.Text = "  " .. text .. ": " .. tostring(self.Config[configKey] or "Nenhum")
-    btn.Font = Enum.Font.Gotham
-    btn.TextColor3 = Theme.Text
-    btn.TextXAlignment = Enum.TextXAlignment.Left
-    btn.Parent = base
-
-    btn.MouseButton1Click:Connect(function()
-        -- Lógica simplificada: alterna entre opções ao clicar para evitar dropdowns que travam
-        local current = self.Config[configKey]
-        local nextIdx = 1
-        for i, v in ipairs(options) do if v == current then nextIdx = (i % #options) + 1 break end end
-        local selection = options[nextIdx]
-        self.Config[configKey] = selection
-        btn.Text = "  " .. text .. ": " .. tostring(selection)
-        if callback then callback(selection) end
-    end)
-    
-    return function(newOptions) options = newOptions end -- Função de Refresh
-end
-
--- ==========================================
--- 📑 CONSTRUÇÃO DAS ABAS
--- ==========================================
-function Interface:CreateTabs()
-    -- Dashboard
-    local dash = self:AddTab("Dashboard")
-    local title = Instance.new("TextLabel")
-    title.Size = UDim2.new(1, 0, 0, 50)
-    title.Text = "Bem-vindo ao Sailor Hub\nStatus: Online"
-    title.TextColor3 = Theme.Accent
-    title.BackgroundTransparency = 1
-    title.Font = Enum.Font.GothamBold
-    title.Parent = dash
-
-    -- Combate
-    local combat = self:AddTab("Combat")
-    self:CreateToggle(combat, "Auto Farm Max Level", "AutoFarmMaxLevel")
-    self:CreateToggle(combat, "Auto Quest", "AutoQuest")
-    
-    local islandList = self.Constants.QuestFilterOptions or {"Starter"}
-    local questList = {"Selecione Ilha"}
-    
-    local refreshQuests
-    self:CreateDropdown(combat, "Selecionar Ilha", islandList, "SelectedQuestIsland", function(val)
-        local newQuests = {}
-        if self.Constants.QuestDataMap[val] then
-            for _, q in ipairs(self.Constants.QuestDataMap[val]) do table.insert(newQuests, q.Name) end
+    sliderBG.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then
+            dragging = true; updateSlider(input)
         end
-        refreshQuests(newQuests)
     end)
-    
-    refreshQuests = self:CreateDropdown(combat, "Selecionar Missão", questList, "SelectedQuest")
-    
-    self:CreateToggle(combat, "Auto Dummy", "AutoDummy")
-    self:CreateToggle(combat, "Auto Boss", "AutoBoss")
-
-    -- Itens
-    local items = self:AddTab("Automation")
-    self:CreateToggle(items, "Coletar Frutas", "AutoCollect.Fruits")
-    self:CreateToggle(items, "Coletar Hogyoku", "AutoCollect.Hogyoku")
+    game:GetService("UserInputService").InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false end
+    end)
+    game:GetService("UserInputService").InputChanged:Connect(function(input)
+        if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then updateSlider(input) end
+    end)
 end
 
-function Interface:Destroy()
-    if self.ScreenGui then self.ScreenGui:Destroy() end
-end
+-- ==========================================
+-- 🗂️ CONSTRUÇÃO DAS ABAS E CONTEÚDO
+-- ==========================================
 
-return Interface
+-- 1. Farm Principal
+local pageFarm = CreateTab("Principal (Farm)")
+CreateToggle(pageFarm, "Auto Farm Max Level", "AutoFarmMaxLevel")
+CreateToggle(pageFarm, "Auto Farm Mob", "AutoFarm")
+CreateToggle(pageFarm, "Auto Boss", "AutoBoss")
+CreateToggle(pageFarm, "Auto Dummy", "AutoDummy")
+
+-- 2. Combate Config
+local pageCombat = CreateTab("Combate")
+CreateSlider(pageCombat, "Distância de Ataque", 0, 50, "Distance")
+CreateSlider(pageCombat, "Velocidade do Tween", 50, 300, "TweenSpeed")
+
+-- 3. Missões
+local pageQuests = CreateTab("Missões")
+CreateToggle(pageQuests, "Auto Quest", "AutoQuest")
+
+-- 4. Coleta & Itens
+local pageCollect = CreateTab("Coleta")
+CreateToggle(pageCollect, "Coletar Frutas do Chão", "Fruits", "AutoCollect")
+CreateToggle(pageCollect, "Fruit Sniper", "FruitSniper")
+CreateToggle(pageCollect, "Coletar Hogyoku", "Hogyoku", "AutoCollect")
+CreateToggle(pageCollect, "Coletar Puzzles", "Puzzles", "AutoCollect")
+CreateToggle(pageCollect, "Coletar Baús", "Chests", "AutoCollect")
+
+-- 5. Status & Gacha
+local pageStats = CreateTab("Status & Gacha")
+CreateToggle(pageStats, "Distribuir Status", "AutoStats")
+CreateToggle(pageStats, "Auto Roletar Raça", "Race", "AutoReroll")
+CreateToggle(pageStats, "Auto Roletar Clã", "Clan", "AutoReroll")
+CreateSlider(pageStats, "Baús para Abrir", 1, 10, "ChestOpenAmount")
+
+-- 6. Misc
+local pageMisc = CreateTab("Miscelânea")
+CreateToggle(pageMisc, "Super Velocidade", "SuperSpeed")
+CreateSlider(pageMisc, "Multiplicador Velocidade", 1, 5, "SpeedMultiplier")
+CreateToggle(pageMisc, "Pulo Infinito", "InfJump")
+CreateToggle(pageMisc, "Haki do Armamento", "HakiArmamento", "HacksNativos")
+CreateToggle(pageMisc, "Haki da Observação", "HakiObservacao", "HacksNativos")
+CreateToggle(pageMisc, "Remover Cutscenes", "NoCutscene", "HacksNativos")
+
+-- Inicializar Primeira Aba
+for _, btn in ipairs(Sidebar:GetChildren()) do
+    if btn:IsA("TextButton") then
+        btn.TextColor3 = Theme.Accent
+        btn.BackgroundColor3 = Theme.Component
+        tabs[btn.Text].Visible = true
+        activeTabBtn = btn
+        break
+    end
+end

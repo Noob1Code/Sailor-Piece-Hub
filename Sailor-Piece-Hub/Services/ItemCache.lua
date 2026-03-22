@@ -38,16 +38,15 @@ function ItemCache.new(workspaceInstance)
     return self
 end
 
--- Função para o Cérebro ignorar um item bugado
 function ItemCache:IgnoreItem(obj)
     if typeof(obj) == "Instance" then
         self.Blacklist[obj] = true
-        self:Uncategorize(obj) -- Tira das listas ativas imediatamente
+        self:Uncategorize(obj) 
     end
 end
 
 function ItemCache:Categorize(obj)
-    if typeof(obj) ~= "Instance" or self.Blacklist[obj] then return end -- Se tá na blacklist, ignora
+    if typeof(obj) ~= "Instance" or self.Blacklist[obj] then return end 
     
     local name = string.lower(obj.Name)
     
@@ -77,16 +76,14 @@ function ItemCache:GetItems(categoryName)
     
     if categoryTable then
         for obj, _ in pairs(categoryTable) do
-            -- Limpeza rigorosa: se o item virou "fantasma" (foi destruído ou sumiu do mapa), remove do cache.
+            -- Limpeza rigorosa: previne tentar ir até um item que já foi apagado do mapa
             if typeof(obj) ~= "Instance" or not obj.Parent or not obj:IsDescendantOf(self.Workspace) then
                 categoryTable[obj] = nil
                 continue
             end
             
-            if self.Blacklist[obj] then continue end -- Prevenção dupla
+            if self.Blacklist[obj] then continue end 
             
-            -- Retorna apenas a Instância bruta (O(1)). 
-            -- A FSM (State_COLLECTING) é quem vai se preocupar em procurar Prompt/Clicker depois.
             table.insert(list, { Instance = obj })
         end
     end

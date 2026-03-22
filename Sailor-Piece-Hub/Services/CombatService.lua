@@ -1,6 +1,6 @@
 -- =====================================================================
 -- ⚔️ SERVICES: CombatService.lua
--- Responsabilidade: Isolar interações com o mundo (Remotes, Movimento, Tween).
+-- Responsabilidade: Isolar a movimentação (Tween/TP) e Remotes do jogo.
 -- =====================================================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -21,12 +21,10 @@ function CombatService.new(Constants, Config)
     self.LastTeleportTime = 0
     self.CurrentTween = nil
     self.LastTweenTargetPos = nil
-    
     self:LoadRemotes()
     return self
 end
 
--- CENTRALIZAÇÃO DE TODOS OS REMOTES
 function CombatService:LoadRemotes()
     self.Remotes = {}
     pcall(function()
@@ -45,43 +43,14 @@ function CombatService:LoadRemotes()
 end
 
 function CombatService:SetCharacterFrozen(isFrozen)
-    local char = LP.Character
-    if not char then return end
-    local hum = char:FindFirstChild("Humanoid")
-    local hrp = char:FindFirstChild("HumanoidRootPart")
-    if hum and hrp then
-        if isFrozen then hrp.Velocity = Vector3.zero; hum.PlatformStand = true else hum.PlatformStand = false end
-    end
+    local char = LP.Character; if not char then return end
+    local hum = char:FindFirstChild("Humanoid"); local hrp = char:FindFirstChild("HumanoidRootPart")
+    if hum and hrp then if isFrozen then hrp.Velocity = Vector3.zero; hum.PlatformStand = true else hum.PlatformStand = false end end
 end
 
--- 🌐 INTERAÇÕES GERAIS DE REDE (Substitui execuções soltas)
-function CombatService:SummonBoss(bossName)
-    if self.Remotes.SummonBoss then self.Remotes.SummonBoss:FireServer(bossName) end
-end
-
-function CombatService:UseItem(action, item, amount)
-    if self.Remotes.UseItem then self.Remotes.UseItem:FireServer(action, item, amount or 1, false) end
-end
-
-function CombatService:AllocateStats(statArray, totalPoints)
-    if not self.Remotes.AllocateStat then return end
-    local selectedCount = #statArray
-    if selectedCount > 0 then
-        local basePoints = math.floor(totalPoints / selectedCount)
-        local remainder = totalPoints % selectedCount
-        for i, stat in ipairs(statArray) do
-            local pointsToAllocate = basePoints + (i <= remainder and 1 or 0)
-            if pointsToAllocate > 0 then self.Remotes.AllocateStat:FireServer(stat, pointsToAllocate) end
-        end
-    end
-end
-
-function CombatService:ToggleHaki(typeHaki)
-    if typeHaki == "Armamento" and self.Remotes.HakiArmamento then self.Remotes.HakiArmamento:FireServer("Toggle") end
-    if typeHaki == "Observacao" and self.Remotes.HakiObservacao then self.Remotes.HakiObservacao:FireServer("Toggle") end
-end
-
+-- ==========================================
 -- 🌍 SISTEMA DE TELEPORTE INTELIGENTE
+-- ==========================================
 function CombatService:SmartIslandTeleport(islandName)
     if not islandName or islandName == "Eventos (Timed Bosses)" then return false end
     if tick() - self.LastTeleportTime < 3 then return false end 
@@ -92,15 +61,13 @@ function CombatService:SmartIslandTeleport(islandName)
         local oldPos = hrp and hrp.Position or Vector3.zero
 
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
-        self:SetCharacterFrozen(true)
+        self:SetCharacterFrozen(false)
         
         self.Remotes.Teleport:FireServer(dest)
         self.LastTeleportTime = tick()
 
         if hrp then
-            for i = 1, 15 do 
-                task.wait(0.5); if (hrp.Position - oldPos).Magnitude > 200 then break end
-            end
+            for i = 1, 15 do task.wait(0.5) if (hrp.Position - oldPos).Magnitude > 200 then break end end
         else task.wait(3) end
         
         task.wait(1.5)
@@ -114,8 +81,7 @@ function CombatService:AutoSaveSpawn()
     pcall(function()
         local char = LP.Character
         if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
-        local hrp = char.HumanoidRootPart
-        local closestPrompt, targetPart = nil, nil
+        local hrp = char.HumanoidRootPart; local closestPrompt, targetPart = nil, nil
         
         for attempt = 1, 8 do
             local myPos = hrp.Position; local minDist = math.huge
@@ -131,43 +97,47 @@ function CombatService:AutoSaveSpawn()
                     end
                 end
             end
-            if closestPrompt then break end
-            task.wait(0.5)
+            if closestPrompt then break end; task.wait(0.5)
         end
 
         if closestPrompt and targetPart then
-            self:SetCharacterFrozen(true)
             local dist = (hrp.Position - targetPart.Position).Magnitude
             if dist > 10 then
-                local tempo = math.max(0.1, dist / math.max(self.Config.TweenSpeed, 50))
+                local tempo = math.max(0.1, dist / math.max(self.Config.TweenSpeed, 150))
                 local tween = TweenService:Create(hrp, TweenInfo.new(tempo, Enum.EasingStyle.Linear), {CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)})
                 tween:Play(); tween.Completed:Wait(); task.wait(0.5)
             else hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0); task.wait(0.5) end
             
-            if closestPrompt and closestPrompt:IsA("ProximityPrompt") and closestPrompt.Enabled and fireproximityprompt then 
-                fireproximityprompt(closestPrompt); task.wait(0.2); fireproximityprompt(closestPrompt)
-            end
+            -- FIX do ProximityPrompt do Roblox: Envolvido num pcall para evitar crash do CoreScript
+            pcall(function()
+                if closestPrompt and closestPrompt:IsA("ProximityPrompt") and closestPrompt.Enabled and fireproximityprompt then 
+                    fireproximityprompt(closestPrompt); task.wait(0.2); fireproximityprompt(closestPrompt)
+                end
+            end)
             task.wait(0.5)
-            self:SetCharacterFrozen(false)
             return true 
         end
     end)
-    self:SetCharacterFrozen(false)
     return false
 end
 
--- 🏃 MOVIMENTAÇÃO (TWEEN)
+-- ==========================================
+-- 🏃 MOVIMENTAÇÃO (TWEEN OTIZIMADO PARA EVITAR LAG)
+-- ==========================================
 function CombatService:MoveToTarget(targetInstance, customDistance)
     local char = LP.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return false end
     
     local hrp = char.HumanoidRootPart
-    local targetPos
+    local targetPos, targetTargetPos
     
+    -- RESOLUÇÃO DO ERRO MODEL: Previne ler '.Position' sem BasePart válido.
     if targetInstance:IsA("Model") then
-        local targetHrp = targetInstance:FindFirstChild("HumanoidRootPart")
+        local targetHrp = targetInstance.PrimaryPart or targetInstance:FindFirstChild("HumanoidRootPart") or targetInstance:FindFirstChildWhichIsA("BasePart", true)
         if not targetHrp then return false end
+        
         targetPos = targetHrp.Position
+        targetTargetPos = targetHrp.Position
         
         local positionType = self.Config.AttackPosition
         local isLethal = targetInstance:GetAttribute("Damage") and targetInstance:GetAttribute("Damage") > 100000
@@ -180,11 +150,12 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
         elseif positionType == "Atrás" then targetPos = targetPos - (targetHrp.CFrame.LookVector * dist)
         elseif positionType == "Abaixo" then targetPos = targetPos + Vector3.new(0, -dist, 0)
         else targetPos = targetPos + Vector3.new(0, dist, 0) end
-    elseif targetInstance:IsA("BasePart") then targetPos = targetInstance.Position
+    elseif targetInstance:IsA("BasePart") then 
+        targetPos = targetInstance.Position
+        targetTargetPos = targetInstance.Position
     else return false end
 
     self:SetCharacterFrozen(true)
-    local targetTargetPos = targetInstance:IsA("Model") and targetInstance:FindFirstChild("HumanoidRootPart") and targetInstance.HumanoidRootPart.Position or targetInstance.Position
     local targetCFrame = CFrame.new(targetPos, targetTargetPos)
     local distance = (hrp.Position - targetPos).Magnitude
     
@@ -195,11 +166,14 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
     end
     
     if distance > 15 then
+        -- Não recria o Tween de forma compulsiva para não lagar o Profiler do Roblox
         if self.CurrentTween and self.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then
-            if self.LastTweenTargetPos and (self.LastTweenTargetPos - targetPos).Magnitude > 10 then self.CurrentTween:Cancel() else return false end
+            if self.LastTweenTargetPos and (self.LastTweenTargetPos - targetPos).Magnitude > 5 then
+                self.CurrentTween:Cancel()
+            else return false end
         end
 
-        local tempo = math.max(0.1, distance / math.max(self.Config.TweenSpeed, 50))
+        local tempo = math.max(0.1, distance / math.max(self.Config.TweenSpeed, 150))
         self.LastTweenTargetPos = targetPos
         self.CurrentTween = TweenService:Create(hrp, TweenInfo.new(tempo, Enum.EasingStyle.Linear), {CFrame = targetCFrame})
         self.CurrentTween:Play()
@@ -215,7 +189,6 @@ end
 function CombatService:EquipWeapon()
     local char = LP.Character; local backpack = LP:FindFirstChild("Backpack")
     if not char or not backpack then return end
-
     if self.Config.SelectedWeapon == "Nenhuma" then
         for _, tool in ipairs(backpack:GetChildren()) do if tool:IsA("Tool") then tool.Parent = char break end end
     else

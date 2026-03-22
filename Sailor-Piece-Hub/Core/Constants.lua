@@ -1,15 +1,14 @@
 -- =====================================================================
--- 📚 CORE: Constants.lua (Banco de Dados Estático do Jogo)
+-- 📚 CORE: Constants.lua
+-- Responsabilidade: Fornecer dados estáticos e imutáveis do jogo.
 -- =====================================================================
-
 local Constants = {}
 
 Constants.TeleportMap = {
-    ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert",
-    ["Snow"] = "Snow", ["Sailor"] = "Sailor", ["Shibuya Station"] = "Shibuya",
-    ["Hueco Mundo"] = "HuecoMundo", ["Boss Island"] = "Boss", ["Dungeon"] = "Dungeon",
-    ["Shinjuku"] = "Shinjuku", ["Slime"] = "Slime", ["Academy"] = "Academy",
-    ["Judgement"] = "Judgement", ["Soul Society"] = "SoulSociety"
+    ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert", ["Snow"] = "Snow", 
+    ["Sailor"] = "Sailor", ["Shibuya Station"] = "Shibuya", ["Hueco Mundo"] = "HuecoMundo", 
+    ["Boss Island"] = "Boss", ["Dungeon"] = "Dungeon", ["Shinjuku"] = "Shinjuku", 
+    ["Slime"] = "Slime", ["Academy"] = "Academy", ["Judgement"] = "Judgement", ["Soul Society"] = "SoulSociety"
 }
 
 Constants.IslandDataMap = {
@@ -34,7 +33,7 @@ Constants.QuestDataMap = {
     ["Jungle"] = {{Name = "Quest 3: Mobs (Monkey)", NPC = "QuestNPC3", Target = "Monkey", Type = "Mob"}, {Name = "Quest 4: Boss (Monkey Boss)", NPC = "QuestNPC4", Target = "MonkeyBoss", Type = "Boss"}},
     ["Desert"] = {{Name = "Quest 5: Mobs (Bandits)", NPC = "QuestNPC5", Target = "DesertBandit", Type = "Mob"}, {Name = "Quest 6: Boss (Desert Boss)", NPC = "QuestNPC6", Target = "DesertBoss", Type = "Boss"}},
     ["Snow"] = {{Name = "Quest 7: Mobs (Frost Rogue)", NPC = "QuestNPC7", Target = "FrostRogue", Type = "Mob"}, {Name = "Quest 8: Boss (Snow Boss)", NPC = "QuestNPC8", Target = "SnowBoss", Type = "Boss"}},
-    ["Sailor"] = {{Name = "Âncora Sailor", NPC = "AscendNPC", Target = "Nenhum", Type = "Mob"}},
+    ["Sailor"] = {{Name = "Âncora Sailor", NPC = "JinwooMovesetNPC", Target = "Nenhum", Type = "Mob"}},
     ["Shibuya"] = {{Name = "Quest 9: Mobs (Sorcerer)", NPC = "QuestNPC9", Target = "Sorcerer", Type = "Mob"}, {Name = "Quest 10: Mobs (Panda Sorcerer)", NPC = "QuestNPC10", Target = "PandaMiniBoss", Type = "Boss"}},
     ["Hueco Mundo"] = {{Name = "Quest 11: Mobs (Hollow)", NPC = "QuestNPC11", Target = "Hollow", Type = "Mob"}},
     ["Shinjuku"] = {{Name = "Quest 12: Mobs", NPC = "QuestNPC12", Target = "StrongSorcerer", Type = "Mob"}, {Name = "Quest 13: Mobs", NPC = "QuestNPC13", Target = "Curse", Type = "Mob"}},

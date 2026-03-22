@@ -1,6 +1,7 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro OOP Refatorado - SRP)
--- Responsabilidade: Decidir o estado atual com base em prioridades (Loops).
+-- 🧠 LOGIC: FSM.lua (Cérebro OOP Refatorado para o Sistema Dual-Tick)
+-- Responsabilidade: O exato Padrão do Script Original (Cérebro Lento + Musculo Rápido)
+-- Isso erradica para sempre os travamentos do CoreScriptsProfiler.
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -19,14 +20,13 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.ItemCache = ItemCache
     self.Constants = Constants
     
-    self.State = "IDLE"
+    self.LastBrainTick = 0
+    self.LastMuscleTick = 0
     self.LastBackgroundTick = 0
     self.LastSummonTime = 0
     
     self.BossState = {}
     self.BossPatience = 0
-    self.LastAutoBossState = false 
-    self.IsCollecting = false
     self.QuestGuiCache = nil
     self._Connections = {} 
     
@@ -42,21 +42,23 @@ function FSM:_InitFruitSniper()
     self.ItemCache.OnFruitSpawned = function(fruitInstance)
         if not self.Config.FruitSniper then return end
         
-        -- Lógica de Teleporte Direto (Igual ao antigo TeleportAndCollectFruit)
         local prompt = fruitInstance:FindFirstChildWhichIsA("ProximityPrompt", true) or (fruitInstance.Parent and fruitInstance.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
         local clicker = fruitInstance:FindFirstChildWhichIsA("ClickDetector", true)
         
         if prompt or clicker then
             local pos = fruitInstance:IsA("BasePart") and fruitInstance.Position or (fruitInstance:IsA("Model") and fruitInstance.PrimaryPart and fruitInstance.PrimaryPart.Position)
+            if not pos then local part = fruitInstance:FindFirstChildWhichIsA("BasePart", true); if part then pos = part.Position end end
+            
             if pos then
                 local char = LP.Character
                 if char and char:FindFirstChild("HumanoidRootPart") then
                     if _G.SendToast then _G.SendToast("🍎 Sniper Ativado", "Coletando: " .. fruitInstance.Name, 4) end
-                    self.CombatService:SetCharacterFrozen(true)
                     char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 5, 0))
                     task.wait(0.5)
-                    if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-                    if clicker and fireclickdetector then fireclickdetector(clicker) end
+                    pcall(function()
+                        if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+                        if clicker and fireclickdetector then fireclickdetector(clicker) end
+                    end)
                     self.ItemCache:IgnoreItem(fruitInstance)
                 end
             end
@@ -95,130 +97,99 @@ function FSM:_InitChatMonitor()
 end
 
 -- =========================================================
--- 🔄 MOTOR DE ESTADO (Executa a cada frame)
+-- 🔄 MOTOR DE ESTADO E LIMITADOR DE DESEMPENHO (O Segredo!)
 -- =========================================================
 function FSM:Update(deltaTime)
-    self:_HandleBackgroundTasks()
+    local now = tick()
+    
+    -- ⚡ LOOP RÁPIDO (Músculos - Voo/Tweens) - Executa a cada 0.05 segundos
+    if now - self.LastMuscleTick >= 0.05 then
+        self.LastMuscleTick = now
+        self:_MuscleUpdate()
+    end
+    
+    -- 🧠 LOOP LENTO (Cérebro - Busca de NPCs/Missões) - Executa a cada 1 segundo (Evita o Lag!)
+    if now - self.LastBrainTick >= 1.0 then
+        self.LastBrainTick = now
+        self:_BrainUpdate()
+        self:_HandleBackgroundTasks()
+    end
+end
+
+-- =========================================================
+-- 🧠 CÉREBRO: TOMADA DE DECISÃO E PRIORIDADES
+-- =========================================================
+function FSM:_BrainUpdate()
+    local myIsland = self:_GetCurrentIsland()
+    local hasAction = false
     
     if self.Config.AutoBoss and not self.LastAutoBossState then
         for _, b in ipairs(self.Config.SelectedBosses) do self.BossState[b] = "PendingCheck" end
         self.BossPatience = 0
     end
     self.LastAutoBossState = self.Config.AutoBoss
-    
-    local isFarming = self.Config.AutoFarm or self.Config.AutoBoss or self.Config.AutoQuest or self.Config.AutoFarmMaxLevel or self.Config.AutoDummy or self.Config.AutoSummon
-    local isCollecting = self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Hogyoku or self.Config.AutoCollect.Puzzles or self.Config.AutoCollect.Chests or self.Config.AutoGroupReward
-    
-    if not isFarming and not isCollecting then
-        if self.State ~= "IDLE" then
-            self.TargetManager:ClearTarget(); self.TargetManager:ClearInteractionTarget()
-            self.State = "IDLE"; self.IsCollecting = false; self.CombatService:SetCharacterFrozen(false)
-            if self.CombatService.CurrentTween then self.CombatService.CurrentTween:Cancel() end
-        end
-        return
-    end
 
-    if self.IsCollecting then return end
-
-    if self.State == "IDLE" then self.State = "SEARCHING"
-    elseif self.State == "SEARCHING" then self:_State_SEARCHING(deltaTime)
-    elseif self.State == "NAVIGATING" then self:_State_NAVIGATING()
-    elseif self.State == "ATTACKING" then self:_State_ATTACKING()
-    elseif self.State == "COLLECTING" then self:_State_COLLECTING()
-    end
-end
-
--- =========================================================
--- 🧠 TOMADA DE DECISÃO: LÓGICA DE PRIORIDADES
--- =========================================================
-function FSM:_CheckAndNavigate(targetInstance, expectedIsland)
-    if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
-        self.CombatService:SmartIslandTeleport(expectedIsland)
-        return true -- Corta o fluxo
-    end
-    
-    if not targetInstance then return false end
-    
-    local pos = targetInstance:IsA("Model") and (targetInstance.PrimaryPart and targetInstance.PrimaryPart.Position or (targetInstance:FindFirstChildWhichIsA("BasePart", true) and targetInstance:FindFirstChildWhichIsA("BasePart", true).Position)) or targetInstance.Position
-    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    
-    if hrp and pos and (hrp.Position - pos).Magnitude > 1000 then
-        self.CombatService:SmartIslandTeleport(expectedIsland or self:GetCurrentIsland())
-        return true
-    end
-    
-    if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
-        self.TargetManager:SetTarget(targetInstance)
-    else self.TargetManager:SetInteractionTarget(targetInstance) end
-    
-    self.State = "NAVIGATING"
-    return true
-end
-
-function FSM:_State_SEARCHING(deltaTime)
-    -- PRIO 0: Itens no Chão
-    local checkList = {
-        { Ativo = self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
-        { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
-        { Ativo = self.Config.AutoCollect.Puzzles, Tipo = "Puzzles" },
-        { Ativo = self.Config.AutoCollect.Chests, Tipo = "Chests" }
-    }
+    -- 0. Coleta Terrestre de Área (Mais Prioritária Temporária)
+    local checkList = { { Ativo = self.Config.AutoCollect.Fruits, Tipo = "Fruits" }, { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" }, { Ativo = self.Config.AutoCollect.Puzzles, Tipo = "Puzzles" }, { Ativo = self.Config.AutoCollect.Chests, Tipo = "Chests" } }
     for _, configItem in ipairs(checkList) do
         if configItem.Ativo then
             local items = self.ItemCache:GetItems(configItem.Tipo)
-            if #items > 0 then self.TargetManager:SetInteractionTarget(items[1].Instance); self.State = "COLLECTING"; return end
+            if #items > 0 then self.TargetManager:SetInteractionTarget(items[1].Instance); hasAction = true; break end
         end
     end
 
-    -- PRIO 1: Auto Summon Exclusivo
-    if self.Config.AutoSummon and self.Config.SelectedSummonBoss ~= "Nenhum" then
+    -- 1. Auto Summon
+    if not hasAction and self.Config.AutoSummon and self.Config.SelectedSummonBoss ~= "Nenhum" then
         local targetIsland = "Boss Island"
-        local bTarget = self:FindMob("Boss", self.Config.SelectedSummonBoss, targetIsland)
+        local bTarget = self:_FindValidTarget("Boss", self.Config.SelectedSummonBoss, targetIsland)
         if bTarget then
-            if self:_CheckAndNavigate(bTarget, targetIsland) then return end
+            if myIsland ~= targetIsland then self.CombatService:SmartIslandTeleport(targetIsland)
+            else self.TargetManager:SetTarget(bTarget) end
+            hasAction = true
         else
-            if self:GetCurrentIsland() ~= targetIsland then self.CombatService:SmartIslandTeleport(targetIsland); return end
-            if tick() - self.LastSummonTime > 5 then
-                self.CombatService:SummonBoss(self.Config.SelectedSummonBoss)
-                self.LastSummonTime = tick(); task.wait(2)
-            end
-            return
-        end
-    end
-
-    -- PRIO 2: Máquina de Boss
-    if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
-        local bossTargetName = nil
-        for _, b in ipairs(self.Config.SelectedBosses) do
-            if self.BossState[b] == "PendingCheck" or self.BossState[b] == "Alive" or not self.BossState[b] then 
-                bossTargetName = b; if not self.BossState[b] then self.BossState[b] = "PendingCheck" end; break 
-            end
-        end
-        
-        if bossTargetName then
-            local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
-            if targetIsland and self:GetCurrentIsland() ~= targetIsland then
-                self.BossPatience = 0; self.CombatService:SmartIslandTeleport(targetIsland); return 
-            end
-
-            local bTarget = self:FindMob("Boss", bossTargetName, targetIsland)
-            if bTarget then
-                self.BossState[bossTargetName] = "Alive"; self.BossPatience = 0
-                if self:_CheckAndNavigate(bTarget, targetIsland) then return end
+            if myIsland ~= targetIsland then self.CombatService:SmartIslandTeleport(targetIsland)
             else
-                self.BossPatience = self.BossPatience + deltaTime
-                local maxPatience = (self.BossState[bossTargetName] == "Alive") and 10 or 4
-                if self.BossPatience > maxPatience then 
-                    self.BossState[bossTargetName] = "Dead"; self.BossPatience = 0; self.TargetManager:ClearTarget()
+                if tick() - self.LastSummonTime > 5 and self.CombatService.Remotes.SummonBoss then
+                    self.CombatService.Remotes.SummonBoss:FireServer(self.Config.SelectedSummonBoss)
+                    self.LastSummonTime = tick()
                 end
-                self.CombatService:SetCharacterFrozen(false)
-                return 
+            end
+            hasAction = true
+        end
+    end
+
+    -- 2. Máquina de Boss
+    if not hasAction and self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
+        local bossName, targetIsland
+        -- Identifica quem caçar baseado no Status
+        for _, b in ipairs(self.Config.SelectedBosses) do if self.BossState[b] == "Alive" then bossName = b; targetIsland = self:_GetIslandByTarget("Boss", b); break end end
+        if not bossName then for _, b in ipairs(self.Config.SelectedBosses) do if self.BossState[b] == "PendingCheck" then bossName = b; targetIsland = self:_GetIslandByTarget("Boss", b); break end end end
+        
+        if bossName and targetIsland then
+            local bTarget = self:_FindValidTarget("Boss", bossName, targetIsland)
+            if bTarget then
+                self.BossState[bossName] = "Alive"
+                self.BossPatience = 0
+                self.TargetManager:SetTarget(bTarget)
+                hasAction = true
+            else
+                if myIsland ~= targetIsland then
+                    self.CombatService:SmartIslandTeleport(targetIsland)
+                    hasAction = true
+                else
+                    self.BossPatience = self.BossPatience + 1
+                    if self.BossPatience > ((self.BossState[bossName] == "Alive") and 10 or 4) then
+                        self.BossState[bossName] = "Dead"
+                        self.BossPatience = 0
+                    end
+                    hasAction = true
+                end
             end
         end
     end
 
-    -- PRIO 3: Missões e Level
-    if self.Config.AutoFarmMaxLevel or self.Config.AutoQuest then
+    -- 3. Missões e Level
+    if not hasAction and (self.Config.AutoFarmMaxLevel or self.Config.AutoQuest) then
         if self.Config.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
             local lvl = data and data:FindFirstChild("Level") and data.Level.Value or 1
@@ -230,122 +201,109 @@ function FSM:_State_SEARCHING(deltaTime)
         local qData = self:_GetQuestData(self.Config.SelectedQuestIsland, self.Config.SelectedQuest)
         if qData then
             local npcIsland = self.Config.SelectedQuestIsland
-            local mobIsland = self:GetIslandByTarget(qData.Type or "Mob", qData.Target) or npcIsland
+            local mobIsland = self:_GetIslandByTarget(qData.Type or "Mob", qData.Target) or npcIsland
             
             if not self:_IsQuestActive(qData) then
-                local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(qData.NPC)
-                if self:_CheckAndNavigate(npc, npcIsland) then return end
+                if myIsland ~= npcIsland then self.CombatService:SmartIslandTeleport(npcIsland); hasAction = true
+                else
+                    local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(qData.NPC)
+                    self.TargetManager:SetInteractionTarget(npc); hasAction = true
+                end
             else
-                local mob = self:FindMob(qData.Type or "Mob", qData.Target, mobIsland)
-                if self:_CheckAndNavigate(mob, mobIsland) then return end
+                if myIsland ~= mobIsland then self.CombatService:SmartIslandTeleport(mobIsland); hasAction = true
+                else
+                    local mob = self:_FindValidTarget(qData.Type or "Mob", qData.Target, mobIsland)
+                    self.TargetManager:SetTarget(mob); hasAction = true
+                end
             end
         end
     end
 
-    -- PRIO 4: Dummy e Mob (Manual)
-    if self.Config.AutoDummy then
-        if self:_CheckAndNavigate(self:FindMob("Dummy", ""), self:GetCurrentIsland()) then return end
-    elseif self.Config.AutoFarm and self.Config.SelectedMob ~= "Nenhum" then
-        local expectedIsland = self.Config.SelectedMob == "Todos" and (self.Config.SelectedIslandFilter ~= "Todas" and self.Config.SelectedIslandFilter or self:GetCurrentIsland()) or self:GetIslandByTarget("Mob", self.Config.SelectedMob)
-        if self:_CheckAndNavigate(self:FindMob("Mob", self.Config.SelectedMob, expectedIsland), expectedIsland) then return end
-    end
-
-    -- Sem Ação
-    self.CombatService:SetCharacterFrozen(false)
-end
-
-function FSM:_State_NAVIGATING()
-    local combatTarget = self.TargetManager:GetTarget()
-    local interactTarget = self.TargetManager:GetInteractionTarget()
-    
-    if not combatTarget and not interactTarget then 
-        self.State = "SEARCHING"; return 
-    end
-    
-    if combatTarget then
-        if self.CombatService:MoveToTarget(combatTarget) then self.State = "ATTACKING" end
-    elseif interactTarget then
-        if self.CombatService:MoveToTarget(interactTarget, 1.5) then self.State = "COLLECTING" end
-    end
-end
-
-function FSM:_State_ATTACKING()
-    local target = self.TargetManager:GetTarget()
-    if not target then self.State = "SEARCHING"; return end
-    
-    if not self.CombatService:MoveToTarget(target) then self.State = "NAVIGATING"; return end
-    self.CombatService:ExecuteAttack(target)
-end
-
-function FSM:_State_COLLECTING()
-    local item = self.TargetManager:GetInteractionTarget()
-    if not item then self.State = "SEARCHING"; return end
-    
-    self.CombatService:SetCharacterFrozen(false)
-    if self.IsCollecting then return end
-    self.IsCollecting = true
-    
-    task.spawn(function()
-        pcall(function()
-            local pos = item:IsA("BasePart") and item.Position or (item:IsA("Model") and item.PrimaryPart and item.PrimaryPart.Position)
-            if not pos then local p = item:FindFirstChildWhichIsA("BasePart", true); if p then pos = p.Position end end
-            
-            local char = LP.Character
-            if char and char:FindFirstChild("HumanoidRootPart") and pos then
-                char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-                task.wait(0.5)
-                local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true) or (item.Parent and item.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
-                local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
-                
-                if prompt and prompt:IsA("ProximityPrompt") and prompt.Enabled and fireproximityprompt then fireproximityprompt(prompt) end
-                if clicker and clicker:IsA("ClickDetector") and fireclickdetector then fireclickdetector(clicker) end
-                
-                self.ItemCache:IgnoreItem(item); task.wait(1.5) 
+    -- 4. Dummy e Mob (Com FIX da Ilha Atual para "Todos")
+    if not hasAction then
+        if self.Config.AutoDummy then
+            self.TargetManager:SetTarget(self:_FindValidTarget("Dummy", ""))
+            hasAction = true
+        elseif self.Config.AutoFarm and self.Config.SelectedMob ~= "Nenhum" then
+            local expectedIsland = self.Config.SelectedMob == "Todos" and (self.Config.SelectedIslandFilter ~= "Todas" and self.Config.SelectedIslandFilter or myIsland) or self:_GetIslandByTarget("Mob", self.Config.SelectedMob)
+            if expectedIsland and myIsland ~= expectedIsland then self.CombatService:SmartIslandTeleport(expectedIsland); hasAction = true
+            else
+                self.TargetManager:SetTarget(self:_FindValidTarget("Mob", self.Config.SelectedMob, expectedIsland))
+                hasAction = true
             end
-            self.TargetManager:ClearInteractionTarget()
-        end)
-        self.State = "SEARCHING"; self.IsCollecting = false
-    end)
+        end
+    end
+
+    -- Limpa a memória se não houver tarefas
+    if not hasAction then
+        self.TargetManager:ClearTarget()
+        self.TargetManager:ClearInteractionTarget()
+    end
+end
+
+-- =========================================================
+-- ⚡ MÚSCULOS: MOVIMENTAÇÃO E INTERAÇÃO
+-- =========================================================
+function FSM:_MuscleUpdate()
+    local interactTarget = self.TargetManager:GetInteractionTarget()
+    local combatTarget = self.TargetManager:GetTarget()
+    local attacking = false
+    
+    if interactTarget then
+        if self.CombatService:MoveToTarget(interactTarget, 1.5) then
+            pcall(function()
+                local prompt = interactTarget:FindFirstChildWhichIsA("ProximityPrompt", true) or (interactTarget.Parent and interactTarget.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
+                if prompt and prompt:IsA("ProximityPrompt") and prompt.Enabled and fireproximityprompt then fireproximityprompt(prompt) end
+                local clicker = interactTarget:FindFirstChildWhichIsA("ClickDetector", true)
+                if clicker and clicker:IsA("ClickDetector") and fireclickdetector then fireclickdetector(clicker) end
+            end)
+            if self.IsCollecting then self.TargetManager:ClearInteractionTarget() end
+        end
+        attacking = true
+    elseif combatTarget then
+        if self.CombatService:MoveToTarget(combatTarget) then
+            self.CombatService:ExecuteAttack(combatTarget)
+        end
+        attacking = true
+    end
+    
+    if not attacking then
+        self.CombatService:SetCharacterFrozen(false)
+    end
 end
 
 -- =========================================================
 -- ⚙️ TAREFAS DE SEGUNDO PLANO (Status, Rerolls, Hacks)
 -- =========================================================
 function FSM:_HandleBackgroundTasks()
-    local now = tick()
-    if now - self.LastBackgroundTick < 1.0 then return end
-    self.LastBackgroundTick = now
-
     pcall(function()
-        -- Auto Stats
         if self.Config.AutoStats then
             local data = LP:FindFirstChild("Data")
-            if data and data:FindFirstChild("StatPoints") and data.StatPoints.Value > 0 then
-                self.CombatService:AllocateStats(self.Config.SelectedStats, data.StatPoints.Value)
+            if data and data:FindFirstChild("StatPoints") and data.StatPoints.Value > 0 and self.CombatService.Remotes.AllocateStat then
+                local pts = data.StatPoints.Value; local qt = #self.Config.SelectedStats
+                if qt > 0 then local bp = math.floor(pts / qt); local rem = pts % qt; for i, st in ipairs(self.Config.SelectedStats) do local ap = bp + (i <= rem and 1 or 0); if ap > 0 then self.CombatService.Remotes.AllocateStat:FireServer(st, ap) end end end
             end
         end
         
-        -- Auto Rerolls & Baús
-        if self.Config.AutoReroll.Race and LP:GetAttribute("CurrentRace") ~= self.Config.AutoReroll.TargetRace then self.CombatService:UseItem("Use", "Race Reroll", 1) end
-        if self.Config.AutoReroll.Clan and LP:GetAttribute("CurrentClan") ~= self.Config.AutoReroll.TargetClan then self.CombatService:UseItem("Use", "Clan Reroll", 1) end
-        
-        local amt = self.Config.ChestOpenAmount or 1
-        if self.Config.AutoOpenChests.Common then self.CombatService:UseItem("Use", "Common Chest", amt) end
-        if self.Config.AutoOpenChests.Rare then self.CombatService:UseItem("Use", "Rare Chest", amt) end
-        if self.Config.AutoOpenChests.Epic then self.CombatService:UseItem("Use", "Epic Chest", amt) end
-        if self.Config.AutoOpenChests.Legendary then self.CombatService:UseItem("Use", "Legendary Chest", amt) end
-        if self.Config.AutoOpenChests.Mythical then self.CombatService:UseItem("Use", "Mythical Chest", amt) end
+        if self.CombatService.Remotes.UseItem then
+            if self.Config.AutoReroll.Race and LP:GetAttribute("CurrentRace") ~= self.Config.AutoReroll.TargetRace then self.CombatService.Remotes.UseItem:FireServer("Use", "Race Reroll", 1, false) end
+            if self.Config.AutoReroll.Clan and LP:GetAttribute("CurrentClan") ~= self.Config.AutoReroll.TargetClan then self.CombatService.Remotes.UseItem:FireServer("Use", "Clan Reroll", 1, false) end
+            local amt = self.Config.ChestOpenAmount or 1
+            if self.Config.AutoOpenChests.Common then self.CombatService.Remotes.UseItem:FireServer("Use", "Common Chest", amt, false) end
+            if self.Config.AutoOpenChests.Rare then self.CombatService.Remotes.UseItem:FireServer("Use", "Rare Chest", amt, false) end
+            if self.Config.AutoOpenChests.Epic then self.CombatService.Remotes.UseItem:FireServer("Use", "Epic Chest", amt, false) end
+            if self.Config.AutoOpenChests.Legendary then self.CombatService.Remotes.UseItem:FireServer("Use", "Legendary Chest", amt, false) end
+            if self.Config.AutoOpenChests.Mythical then self.CombatService.Remotes.UseItem:FireServer("Use", "Mythical Chest", amt, false) end
+        end
         
         if self.Config.AutoTrait and self.CombatService.Remotes.TraitReroll then self.CombatService.Remotes.TraitReroll:FireServer() end
         if self.Config.AutoStatReroll and self.CombatService.Remotes.RerollSingleStat then self.CombatService.Remotes.RerollSingleStat:InvokeServer(self.Config.SelectedStatToReroll) end
 
-        -- Auto Group Reward
-        if self.Config.AutoGroupReward and self.State == "IDLE" then
+        if self.Config.AutoGroupReward and not self.TargetManager:GetTarget() and not self.TargetManager:GetInteractionTarget() then
             local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild("GroupRewardNPC")
-            if npc then self.TargetManager:SetInteractionTarget(npc); self.State = "NAVIGATING" end
+            if npc then self.TargetManager:SetInteractionTarget(npc) end
         end
         
-        -- Hacks Nativos: Enforcing Pulo Extra
         if self.Config.HacksNativos.PuloExtra then LP:SetAttribute("RaceExtraJumps", 5) end
         if self.Config.SuperSpeed then
             local char = LP.Character; local hum = char and char:FindFirstChild("Humanoid")
@@ -355,12 +313,11 @@ function FSM:_HandleBackgroundTasks()
 end
 
 -- =========================================================
--- 🔍 FUNÇÕES AUXILIARES DE BUSCA NO MAPA
+-- 🔍 BUSCAS E RECONHECIMENTO (Helpers)
 -- =========================================================
-function FSM:FindMob(typeStr, name, expectedIsland)
-    local char = LP.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    if not hrp then return nil end
-    local myPos = hrp.Position; local closest, minDist = nil, math.huge
+function FSM:_FindValidTarget(typeStr, name, expectedIsland)
+    local char = LP.Character; local myPos = char and char:FindFirstChild("HumanoidRootPart") and char.HumanoidRootPart.Position or Vector3.zero
+    local closest, minDist = nil, math.huge
     local npcsFolder = Workspace:FindFirstChild("NPCs")
     
     if typeStr == "Dummy" and npcsFolder then
@@ -373,7 +330,7 @@ function FSM:FindMob(typeStr, name, expectedIsland)
                     local baseName = npc.Name:gsub("%d+", "")
                     local isValid = false
                     if name == "Todos" then
-                        local mobIsland = self:GetIslandByTarget("Mob", baseName)
+                        local mobIsland = self:_GetIslandByTarget("Mob", baseName)
                         if mobIsland == expectedIsland or expectedIsland == "Todas" then isValid = true end
                     elseif baseName == name then isValid = true end
 
@@ -401,8 +358,7 @@ function FSM:FindMob(typeStr, name, expectedIsland)
     return closest
 end
 
-function FSM:GetIslandByTarget(typeStr, name)
-    if not self.Constants or not self.Constants.IslandDataMap then return nil end
+function FSM:_GetIslandByTarget(typeStr, name)
     for island, data in pairs(self.Constants.IslandDataMap) do
         if typeStr == "Mob" and data.Mobs then for _, mob in ipairs(data.Mobs) do if mob == name then return island end end
         elseif typeStr == "Boss" and data.Bosses then for _, boss in ipairs(data.Bosses) do if boss == name then return island end end end
@@ -410,7 +366,7 @@ function FSM:GetIslandByTarget(typeStr, name)
     return nil
 end
 
-function FSM:GetCurrentIsland()
+function FSM:_GetCurrentIsland()
     local char = LP.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return "Starter" end
     local myPos = char.HumanoidRootPart.Position
@@ -433,7 +389,7 @@ function FSM:GetCurrentIsland()
                 local dist = (myPos - hrp.Position).Magnitude
                 if dist < minDist then
                     local isBoss = npc.Name:lower():find("boss") or npc:GetAttribute("Boss")
-                    local island = self:GetIslandByTarget(isBoss and "Boss" or "Mob", npc.Name:gsub("%d+", ""))
+                    local island = self:_GetIslandByTarget(isBoss and "Boss" or "Mob", npc.Name:gsub("%d+", ""))
                     if island and island ~= "Eventos (Timed Bosses)" then minDist = dist; closestIsland = island end
                 end
             end

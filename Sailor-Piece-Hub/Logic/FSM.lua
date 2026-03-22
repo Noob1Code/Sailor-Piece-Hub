@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Blindado Anti-Crash V2)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado Anti-Crash V3)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -18,7 +18,6 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.Config = Config
     self.CombatService = CombatService
     self.ItemCache = ItemCache
-    
     self.Constants = Constants or { QuestFilterOptions = {}, QuestDataMap = {}, IslandDataMap = {}, QuestProgression = {} }
     
     self.State = "IDLE"
@@ -28,18 +27,14 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.BossPatience = 0
     self.QuestGuiCache = nil
     self.IsCollecting = false
-    self._Connections = {} -- Guarda os loops extras (Misc)
+    self._Connections = {} 
     
     self:_InitChatMonitor()
-    self:_InitMisc() -- Inicia Speed e InfJump
+    self:_InitMisc()
     return self
 end
 
--- ==========================================
--- ⚡ INICIALIZADORES (Misc e Chat)
--- ==========================================
 function FSM:_InitMisc()
-    -- Super Velocidade
     table.insert(self._Connections, RunService.Heartbeat:Connect(function()
         if self.Config.SuperSpeed then
             local char = LP.Character
@@ -49,8 +44,6 @@ function FSM:_InitMisc()
             end
         end
     end))
-
-    -- Pulo Infinito
     table.insert(self._Connections, UserInputService.JumpRequest:Connect(function()
         if self.Config.InfJump then
             local hum = LP.Character and LP.Character:FindFirstChild("Humanoid")
@@ -84,13 +77,9 @@ function FSM:_InitChatMonitor()
     end)
 end
 
--- ==========================================
--- 🔄 MOTOR DE ESTADOS (Update)
--- ==========================================
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
     
-    -- 🛑 FREIO DE EMERGÊNCIA: Aborta se o usuário desligar tudo na interface
     local isFarmingActive = self.Config.AutoFarm or self.Config.AutoBoss or self.Config.AutoQuest or self.Config.AutoFarmMaxLevel or self.Config.AutoDummy
     local isCollectingActive = self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Hogyoku or self.Config.AutoCollect.Puzzles or self.Config.AutoCollect.Chests or self.Config.FruitSniper
     
@@ -121,7 +110,7 @@ function FSM:State_IDLE()
 end
 
 function FSM:State_SEARCHING()
-    -- 1. Prioridade para Itens no Chão
+    -- 1. Coleta Terrestre
     local checkList = {
         { Ativo = self.Config.FruitSniper or self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
         { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
@@ -141,7 +130,38 @@ function FSM:State_SEARCHING()
             end
         end
     end
-    
+
+    -- FUNÇÃO DE TRAVA DE DESLIZAMENTO (Previne voar pelo mar e obriga Teleporte)
+    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+    local myPos = hrp and hrp.Position or Vector3.zero
+
+    local function checkAndNavigate(targetInstance, expectedIsland)
+        if not targetInstance then
+            if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
+                self.CombatService:SmartIslandTeleport(expectedIsland)
+                return true
+            end
+            return false
+        end
+        
+        local targetPos = targetInstance:IsA("Model") and targetInstance:FindFirstChild("HumanoidRootPart") and targetInstance.HumanoidRootPart.Position or targetInstance.Position
+        local distance = (myPos - targetPos).Magnitude
+        
+        -- Se o alvo estiver a mais de 800 studs, FORCE O TELEPORTE
+        if distance > 800 and expectedIsland then
+             self.CombatService:SmartIslandTeleport(expectedIsland)
+             return true
+        end
+
+        if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
+            self.TargetManager:SetTarget(targetInstance)
+        else
+            self.TargetManager:SetInteractionTarget(targetInstance)
+        end
+        self.State = "NAVIGATING"
+        return true
+    end
+
     -- 2. Prioridade Boss
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         local bossTargetName = nil
@@ -150,22 +170,17 @@ function FSM:State_SEARCHING()
         end
         if bossTargetName then
             local bTarget = self:FindMob("Boss", bossTargetName)
+            local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
+            
             if bTarget then
                 self.BossState[bossTargetName] = "Alive"
                 self.BossPatience = 0
-                self.TargetManager:SetTarget(bTarget)
-                self.State = "NAVIGATING"
-                return
             else
-                local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
-                local currentIsland = self:GetCurrentIsland()
-                if currentIsland and targetIsland and currentIsland ~= targetIsland then
-                    self.CombatService:SmartIslandTeleport(targetIsland)
-                else
-                    self.BossPatience = self.BossPatience + 1
-                    if self.BossPatience > 10 then self.BossState[bossTargetName] = "Dead"; self.BossPatience = 0 end
-                end
+                self.BossPatience = self.BossPatience + 1
+                if self.BossPatience > 10 then self.BossState[bossTargetName] = "Dead"; self.BossPatience = 0 end
             end
+            
+            if checkAndNavigate(bTarget, targetIsland) then return end
         end
     end
 
@@ -185,22 +200,13 @@ function FSM:State_SEARCHING()
         if qData then
             local npcIsland = self.Config.SelectedQuestIsland
             local mobIsland = self:GetIslandByTarget(qData.Type or "Mob", qData.Target) or npcIsland
-            local currentIsland = self:GetCurrentIsland()
             
             if not self:IsQuestActive(qData) then
-                if currentIsland ~= npcIsland then 
-                    self.CombatService:SmartIslandTeleport(npcIsland)
-                else
-                    local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(qData.NPC)
-                    if npc then self.TargetManager:SetInteractionTarget(npc); self.State = "NAVIGATING"; return end
-                end
+                local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild(qData.NPC)
+                if checkAndNavigate(npc, npcIsland) then return end
             else
-                if currentIsland ~= mobIsland then
-                    self.CombatService:SmartIslandTeleport(mobIsland)
-                else
-                    local mob = self:FindMob(qData.Type or "Mob", qData.Target)
-                    if mob then self.TargetManager:SetTarget(mob); self.State = "NAVIGATING"; return end
-                end
+                local mob = self:FindMob(qData.Type or "Mob", qData.Target)
+                if checkAndNavigate(mob, mobIsland) then return end
             end
         end
     end
@@ -208,15 +214,11 @@ function FSM:State_SEARCHING()
     -- 4. Prioridade Dummy/Farm Manual
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
-        if dummy then self.TargetManager:SetTarget(dummy); self.State = "NAVIGATING"; return end
+        if checkAndNavigate(dummy, self:GetCurrentIsland()) then return end
     elseif self.Config.AutoFarm and self.Config.SelectedMob ~= "Nenhum" then
         local targetIsland = self:GetIslandByTarget("Mob", self.Config.SelectedMob)
-        if targetIsland and self:GetCurrentIsland() ~= targetIsland then
-            self.CombatService:SmartIslandTeleport(targetIsland)
-        else
-            local mob = self:FindMob("Mob", self.Config.SelectedMob)
-            if mob then self.TargetManager:SetTarget(mob); self.State = "NAVIGATING"; return end
-        end
+        local mob = self:FindMob("Mob", self.Config.SelectedMob)
+        if checkAndNavigate(mob, targetIsland) then return end
     end
     
     -- 5. Lógica de Pulo de Ilhas (Hogyoku)
@@ -226,18 +228,17 @@ function FSM:State_SEARCHING()
         if #listaIlhas > 0 then
             if self.HogyokuIslandIndex > #listaIlhas then self.HogyokuIslandIndex = 1 end
             local ilhaDestino = listaIlhas[self.HogyokuIslandIndex]
-            
             if self.CombatService:SmartIslandTeleport(ilhaDestino) then
                 self.HogyokuIslandIndex = self.HogyokuIslandIndex + 1
                 self.IsCollecting = true
-                task.spawn(function()
-                    task.wait(3.5)
-                    self.IsCollecting = false
-                end)
+                task.spawn(function() task.wait(3.5); self.IsCollecting = false end)
             end
         end
     end
 
+    -- IMPORTANTE: Se o código chegou até aqui, nenhuma tarefa foi ativada.
+    -- Então ele DESCONGELA o jogador para você ficar livre e voltar a andar.
+    self.CombatService:SetCharacterFrozen(false)
     self.State = "IDLE"
 end
 

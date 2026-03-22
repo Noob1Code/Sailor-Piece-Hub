@@ -20,15 +20,12 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.State = "IDLE"
     self.LastBackgroundTick = 0
     
-    -- Controle do Caçador de Ilhas
     self.HogyokuIslandIndex = 1
-    
-    -- Controle de Bosses e Quests
     self.BossState = {}
     self.BossPatience = 0
     self.QuestGuiCache = nil
     
-    -- 🔒 Trava de Segurança Anti-Lag (Impede o loop infinito de coletas)
+    -- 🔒 Trava de Segurança Anti-Lag
     self.IsCollecting = false
     
     self:_InitChatMonitor()
@@ -96,7 +93,7 @@ end
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
     
-    -- 🛑 AQUI A MAGIA ACONTECE: Impede a FSM de ler frames enquanto coleta ou viaja
+    -- 🛑 Impede a FSM de ler frames enquanto coleta ou viaja
     if self.IsCollecting then return end
 
     if self.State == "IDLE" then self:State_IDLE()
@@ -216,7 +213,6 @@ function FSM:State_SEARCHING()
     if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
         local listaIlhas = self.Constants.QuestFilterOptions 
         if listaIlhas and #listaIlhas > 0 then
-            -- Prevenção para garantir que o Index nunca passe do limite
             if self.HogyokuIslandIndex > #listaIlhas then self.HogyokuIslandIndex = 1 end
             
             local ilhaDestino = listaIlhas[self.HogyokuIslandIndex]
@@ -281,8 +277,9 @@ function FSM:State_COLLECTING()
             char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
             task.wait(0.5)
             
-            local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+            local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true) or (item.Parent and item.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
             local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
+            
             if prompt and fireproximityprompt then fireproximityprompt(prompt) end
             if clicker and fireclickdetector then fireclickdetector(clicker) end
             
@@ -291,7 +288,6 @@ function FSM:State_COLLECTING()
             
             task.wait(1.5) 
         else
-            -- Tratamento de erro seguro
             self.ItemCache:IgnoreItem(item)
             self.TargetManager:ClearInteractionTarget()
         end

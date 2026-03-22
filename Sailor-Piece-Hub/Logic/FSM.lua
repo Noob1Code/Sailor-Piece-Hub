@@ -20,13 +20,16 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.State = "IDLE"
     self.LastBackgroundTick = 0
     
-    -- Controle do Caçador de Ilhas (O que antes era getgenv().HogyokuIslandIndex)
+    -- Controle do Caçador de Ilhas
     self.HogyokuIslandIndex = 1
     
     -- Controle de Bosses e Quests
     self.BossState = {}
     self.BossPatience = 0
     self.QuestGuiCache = nil
+    
+    -- 🔒 Trava de Segurança Anti-Lag (Impede o loop infinito de coletas)
+    self.IsCollecting = false
     
     self:_InitChatMonitor()
     return self
@@ -92,6 +95,10 @@ end
 
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
+    
+    -- 🛑 AQUI A MAGIA ACONTECE: Impede a FSM de ler frames enquanto coleta ou viaja
+    if self.IsCollecting then return end
+
     if self.State == "IDLE" then self:State_IDLE()
     elseif self.State == "SEARCHING" then self:State_SEARCHING()
     elseif self.State == "NAVIGATING" then self:State_NAVIGATING()
@@ -111,7 +118,6 @@ function FSM:State_IDLE()
 end
 
 function FSM:State_SEARCHING()
-    -- 1. PRIORIDADE: ITENS, HOGYOKUS, PUZZLES E CHESTS (Toda sua lista integrada)
     local checkList = {
         { Ativo = self.Config.FruitSniper or self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
         { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
@@ -119,19 +125,20 @@ function FSM:State_SEARCHING()
         { Ativo = self.Config.AutoCollect.Chests, Tipo = "Chests" }
     }
     
+    local achouItem = false
+    
     for _, configItem in ipairs(checkList) do
         if configItem.Ativo then
             local items = self.ItemCache:GetItems(configItem.Tipo)
             if #items > 0 then 
-                -- Achou um item não listado na Blacklist!
                 self.TargetManager:SetInteractionTarget(items[1].Instance)
-                self.State = "COLLECTING" -- Pula o voo devagar, vai direto forçar a coleta igual ao seu script
+                self.State = "COLLECTING"
+                achouItem = true
                 return 
             end
         end
     end
     
-    -- 2. AUTO BOSS
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         local bossTargetName = nil
         for _, b in ipairs(self.Config.SelectedBosses) do
@@ -158,7 +165,6 @@ function FSM:State_SEARCHING()
         end
     end
 
-    -- 3. AUTO QUEST & LEVEL MAX
     if self.Config.AutoFarmMaxLevel or self.Config.AutoQuest then
         if self.Config.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
@@ -192,7 +198,6 @@ function FSM:State_SEARCHING()
         end
     end
 
-    -- 4. AUTO DUMMY & MOB MANUAL
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
         if dummy then self.TargetManager:SetTarget(dummy); self.State = "NAVIGATING"; return end
@@ -206,21 +211,25 @@ function FSM:State_SEARCHING()
         end
     end
     
-    -- 🌍 5. MODO CAÇADOR DE FRAGMENTOS (Sua Lógica Perfeita)
-    -- Só roda se a FSM não encontrou nada acima e o Farm principal está desligado
     local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
     
-    if self.Config.AutoCollect.Hogyoku and not isFarmingActive then
-        local listaIlhas = self.Constants.QuestFilterOptions -- Mesma lista de ilhas para pular
+    if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
+        local listaIlhas = self.Constants.QuestFilterOptions 
         if listaIlhas and #listaIlhas > 0 then
+            -- Prevenção para garantir que o Index nunca passe do limite
+            if self.HogyokuIslandIndex > #listaIlhas then self.HogyokuIslandIndex = 1 end
+            
             local ilhaDestino = listaIlhas[self.HogyokuIslandIndex]
             
             if self.CombatService:SmartIslandTeleport(ilhaDestino) then
-                -- Avança o Index para a próxima ilha para a próxima vez
                 self.HogyokuIslandIndex = self.HogyokuIslandIndex + 1
-                if self.HogyokuIslandIndex > #listaIlhas then
-                    self.HogyokuIslandIndex = 1
-                end
+                
+                -- 🛑 Pausa Assíncrona para não engasgar o carregamento da ilha nova
+                self.IsCollecting = true
+                task.spawn(function()
+                    task.wait(3.5)
+                    self.IsCollecting = false
+                end)
             end
         end
     end
@@ -248,43 +257,49 @@ function FSM:State_ATTACKING()
     self.CombatService:ExecuteAttack(target)
 end
 
--- Sua Lógica de Teleporte Forçado e Blacklist aqui!
 function FSM:State_COLLECTING()
     local item = self.TargetManager:GetInteractionTarget()
     if not item then self.State = "SEARCHING"; return end
     
-    -- Descongela para poder interagir sem bugs
     self.CombatService:SetCharacterFrozen(false)
     
-    -- Descobre a Posição Exata (Sua lógica)
-    local pos = nil
-    if item:IsA("BasePart") then pos = item.Position
-    elseif item:IsA("Model") and item.PrimaryPart then pos = item.PrimaryPart.Position
-    elseif item:IsA("Model") then 
-        local p = item:FindFirstChildWhichIsA("BasePart", true)
-        if p then pos = p.Position end
-    end
+    -- 🛑 Dispara a thread separada protegida por self.IsCollecting
+    if self.IsCollecting then return end
+    self.IsCollecting = true
     
-    local char = LP.Character
-    if char and char:FindFirstChild("HumanoidRootPart") and pos then
-        -- Teleporte Forçado CFrame (Sem Tweening)
-        char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
-        task.wait(0.5)
+    task.spawn(function()
+        local pos = nil
+        if item:IsA("BasePart") then pos = item.Position
+        elseif item:IsA("Model") and item.PrimaryPart then pos = item.PrimaryPart.Position
+        elseif item:IsA("Model") then 
+            local p = item:FindFirstChildWhichIsA("BasePart", true)
+            if p then pos = p.Position end
+        end
         
-        -- Interage
-        local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
-        local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
-        if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-        if clicker and fireclickdetector then fireclickdetector(clicker) end
+        local char = LP.Character
+        if char and char:FindFirstChild("HumanoidRootPart") and pos then
+            char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+            task.wait(0.5)
+            
+            local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+            local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
+            if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+            if clicker and fireclickdetector then fireclickdetector(clicker) end
+            
+            self.ItemCache:IgnoreItem(item)
+            self.TargetManager:ClearInteractionTarget()
+            
+            task.wait(1.5) 
+        else
+            -- Tratamento de erro seguro
+            self.ItemCache:IgnoreItem(item)
+            self.TargetManager:ClearInteractionTarget()
+        end
         
-        -- 🚫 PÕE NA BLACKLIST! O ItemCache nunca mais vai ver esse item.
-        self.ItemCache:IgnoreItem(item)
-        self.TargetManager:ClearInteractionTarget()
-        
-        task.wait(1.5) -- Espera processar igual no seu
-    end
-    
-    self.State = "SEARCHING"
+        -- Libera a FSM e retorna à busca
+        self.State = "SEARCHING"
+        self.IsCollecting = false
+    end)
 end
 
 function FSM:FindMob(typeStr, name)

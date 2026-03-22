@@ -27,7 +27,7 @@ function ItemCache.new(workspaceInstance)
     
     table.insert(self._connections, self.Workspace.DescendantAdded:Connect(function(obj)
         task.delay(0.1, function()
-            if obj.Parent then self:Categorize(obj) end
+            if obj and obj.Parent then self:Categorize(obj) end
         end)
     end))
     
@@ -40,42 +40,35 @@ end
 
 -- Função para o Cérebro ignorar um item bugado
 function ItemCache:IgnoreItem(obj)
-    self.Blacklist[obj] = true
-    self:Uncategorize(obj) -- Tira das listas ativas imediatamente
+    if typeof(obj) == "Instance" then
+        self.Blacklist[obj] = true
+        self:Uncategorize(obj) -- Tira das listas ativas imediatamente
+    end
 end
 
 function ItemCache:Categorize(obj)
-    if self.Blacklist[obj] then return end -- Se tá na blacklist, ignora
+    if typeof(obj) ~= "Instance" or self.Blacklist[obj] then return end -- Se tá na blacklist, ignora
     
     local name = string.lower(obj.Name)
     
     if (name:find("fruit") or name:find("fruta")) and not name:find("dealer") and not name:find("npc") then
         self.Cache.Fruits[obj] = true
-        return
-    end
-    
-    -- Adicionado o "fragment" conforme a sua lógica
-    if name:find("hogyoku") or name:find("fragment") then
+    elseif name:find("hogyoku") or name:find("fragment") then
         self.Cache.Hogyokus[obj] = true
-        return
-    end
-    
-    if name:find("puzzlepiece") or name:find("puzzle") then
+    elseif name:find("puzzlepiece") or name:find("puzzle") then
         self.Cache.Puzzles[obj] = true
-        return
-    end
-    
-    if name:find("box") or name:find("chest") then
+    elseif name:find("box") or name:find("chest") then
         self.Cache.Chests[obj] = true
-        return
     end
 end
 
 function ItemCache:Uncategorize(obj)
-    self.Cache.Fruits[obj] = nil
-    self.Cache.Hogyokus[obj] = nil
-    self.Cache.Puzzles[obj] = nil
-    self.Cache.Chests[obj] = nil
+    if typeof(obj) == "Instance" then
+        self.Cache.Fruits[obj] = nil
+        self.Cache.Hogyokus[obj] = nil
+        self.Cache.Puzzles[obj] = nil
+        self.Cache.Chests[obj] = nil
+    end
 end
 
 function ItemCache:GetItems(categoryName)
@@ -84,15 +77,17 @@ function ItemCache:GetItems(categoryName)
     
     if categoryTable then
         for obj, _ in pairs(categoryTable) do
+            -- Limpeza rigorosa: se o item virou "fantasma" (foi destruído ou sumiu do mapa), remove do cache.
+            if typeof(obj) ~= "Instance" or not obj.Parent or not obj:IsDescendantOf(self.Workspace) then
+                categoryTable[obj] = nil
+                continue
+            end
+            
             if self.Blacklist[obj] then continue end -- Prevenção dupla
             
-            local prompt = obj:FindFirstChildWhichIsA("ProximityPrompt", true) 
-                        or (obj.Parent and obj.Parent:FindFirstChildWhichIsA("ProximityPrompt", true))
-            local clicker = obj:FindFirstChildWhichIsA("ClickDetector", true)
-            
-            if prompt or clicker then
-                table.insert(list, { Instance = obj, Prompt = prompt, ClickDetector = clicker })
-            end
+            -- Retorna apenas a Instância bruta (O(1)). 
+            -- A FSM (State_COLLECTING) é quem vai se preocupar em procurar Prompt/Clicker depois.
+            table.insert(list, { Instance = obj })
         end
     end
     return list

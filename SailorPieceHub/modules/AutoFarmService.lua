@@ -1,29 +1,27 @@
 local AutoFarmService = {}
 AutoFarmService.__index = AutoFarmService
 
-function AutoFarmService.new(stateManager, targetService, combatService)
+function AutoFarmService.new(stateManager, targetService, combatService, teleportService)
     local self = setmetatable({
         _state = stateManager,
         _target = targetService,
         _combat = combatService,
+        _teleport = teleportService,
         _isActive = false,
         _wasFarming = false
     }, AutoFarmService)
-    
     return self
 end
 
 function AutoFarmService:Start()
     self._isActive = true
     self._wasFarming = false
-    print("🚜 AutoFarmService: Pronto para receber Updates.")
 end
 
 function AutoFarmService:Stop()
     self._isActive = false
     self._target:ClearTarget()
     self._wasFarming = false
-    print("🛑 AutoFarmService: Parado e alvo limpo.")
 end
 
 function AutoFarmService:Update()
@@ -41,13 +39,17 @@ function AutoFarmService:Update()
     end
 
     self._wasFarming = true
-
     local currentTarget = self._target:GetTarget()
+    local targetName = self._state:Get("SelectedMob") or "Nenhum"
     
-    if not currentTarget then
-        local targetName = self._state:Get("SelectedMob") or "Nenhum"
-        if targetName ~= "Nenhum" then
-            currentTarget = self._target:FindNearestMob(targetName)
+    if not currentTarget and targetName ~= "Nenhum" then
+        currentTarget = self._target:FindNearestMob(targetName)
+        if not currentTarget then
+            local islandNeeded = self._teleport:GetIslandByMob(targetName)
+            if islandNeeded then
+                self._teleport:TeleportToIsland(islandNeeded)
+                self._teleport:SaveSpawn()
+            end
         end
     end
 

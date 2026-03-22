@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Completo)
+-- 🧠 LOGIC: FSM.lua (Cérebro com Caçador de Ilhas e Blacklist)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -20,6 +20,9 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.State = "IDLE"
     self.LastBackgroundTick = 0
     
+    -- Controle do Caçador de Ilhas (O que antes era getgenv().HogyokuIslandIndex)
+    self.HogyokuIslandIndex = 1
+    
     -- Controle de Bosses e Quests
     self.BossState = {}
     self.BossPatience = 0
@@ -29,35 +32,24 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     return self
 end
 
--- 📡 MONITOR DE CHAT (BOSS SNIPER)
 function FSM:_InitChatMonitor()
     local function ParseChat(mensagem)
         if not self.Config.AutoBoss or #self.Config.SelectedBosses == 0 then return end
         local msg = string.lower(mensagem):gsub("%s+", "")
-        
         if string.lower(mensagem):find("spawned") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-                if msg:find(baseName) then
-                    self.BossState[bossName] = "Alive"
-                    self.BossPatience = 0
-                end
+                if msg:find(baseName) then self.BossState[bossName] = "Alive"; self.BossPatience = 0 end
             end
         elseif string.lower(mensagem):find("defeated") then
             for _, bossName in ipairs(self.Config.SelectedBosses) do
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-                if msg:find(baseName) then
-                    self.BossState[bossName] = "Dead"
-                    self.BossPatience = 0
-                end
+                if msg:find(baseName) then self.BossState[bossName] = "Dead"; self.BossPatience = 0 end
             end
         end
     end
-
     pcall(function()
-        if TextChatService then
-            TextChatService.MessageReceived:Connect(function(msg) if msg and msg.Text then ParseChat(msg.Text) end end)
-        end
+        if TextChatService then TextChatService.MessageReceived:Connect(function(msg) if msg and msg.Text then ParseChat(msg.Text) end end) end
         local defaultChat = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
         if defaultChat and defaultChat:FindFirstChild("OnMessageDoneFiltering") then
             defaultChat.OnMessageDoneFiltering.OnClientEvent:Connect(function(data) if data and data.Message then ParseChat(data.Message) end end)
@@ -65,43 +57,32 @@ function FSM:_InitChatMonitor()
     end)
 end
 
--- 📜 LEITOR DE INTERFACE DE QUEST
 function FSM:IsQuestActive(questData)
     local pg = LP:FindFirstChild("PlayerGui")
     if not pg then return false end
-
     local desc = self.QuestGuiCache
     if not desc or not desc.Parent or not desc.Visible then
         self.QuestGuiCache = nil
         for _, obj in ipairs(pg:GetDescendants()) do
             if obj:IsA("TextLabel") and obj.Name == "QuestRequirement" and obj.Text:find("/") then
                 local isVis, temp = true, obj
-                while temp and temp:IsA("GuiObject") do
-                    if not temp.Visible then isVis = false break end
-                    temp = temp.Parent
-                end
+                while temp and temp:IsA("GuiObject") do if not temp.Visible then isVis = false break end; temp = temp.Parent end
                 if isVis then self.QuestGuiCache = obj; desc = obj; break end
             end
         end
     end
-
     if not desc then return false end
     if not questData then return true end
-
     local targetBase = questData.Target:gsub("Boss", ""):gsub("Mini", ""):lower():gsub("%s+", "")
     local uiText = desc.Text:lower():gsub("%s+", "")
     local titleText = ""
     if desc.Parent then
-        for _, sib in ipairs(desc.Parent:GetChildren()) do
-            if sib:IsA("TextLabel") and sib.Name ~= "QuestRequirement" then titleText = titleText .. sib.Text:lower():gsub("%s+", "") end
-        end
+        for _, sib in ipairs(desc.Parent:GetChildren()) do if sib:IsA("TextLabel") and sib.Name ~= "QuestRequirement" then titleText = titleText .. sib.Text:lower():gsub("%s+", "") end end
     end
-    
     local isMatch = false
     if uiText:find(targetBase) or titleText:find(targetBase) then isMatch = true end
     if targetBase == "sorcerer" and (uiText:find("strong") or titleText:find("strong")) then isMatch = false end
     if targetBase == "swordsman" and (uiText:find("swordsmen") or titleText:find("swordsmen")) then isMatch = true end
-    
     if isMatch then
         local curr, max = desc.Text:match("(%d+)/(%d+)")
         if curr and max and tonumber(curr) < tonumber(max) then return true end
@@ -109,12 +90,8 @@ function FSM:IsQuestActive(questData)
     return false
 end
 
--- ==========================================
--- 🔄 MOTOR DE ESTADOS (UPDATE)
--- ==========================================
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
-
     if self.State == "IDLE" then self:State_IDLE()
     elseif self.State == "SEARCHING" then self:State_SEARCHING()
     elseif self.State == "NAVIGATING" then self:State_NAVIGATING()
@@ -125,7 +102,8 @@ end
 
 function FSM:State_IDLE()
     if self.Config.AutoFarm or self.Config.AutoBoss or self.Config.AutoQuest or self.Config.AutoFarmMaxLevel or
-       self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Chests or self.Config.FruitSniper or self.Config.AutoDummy then
+       self.Config.AutoCollect.Fruits or self.Config.AutoCollect.Chests or self.Config.AutoCollect.Hogyoku or 
+       self.Config.AutoCollect.Puzzles or self.Config.FruitSniper or self.Config.AutoDummy then
         self.State = "SEARCHING"
     else
         self.CombatService:SetCharacterFrozen(false)
@@ -133,13 +111,27 @@ function FSM:State_IDLE()
 end
 
 function FSM:State_SEARCHING()
-    -- 1. SNIPER E COLETA RÁPIDA
-    if self.Config.FruitSniper or self.Config.AutoCollect.Fruits then
-        local fruits = self.ItemCache:GetItems("Fruits")
-        if #fruits > 0 then self.TargetManager:SetInteractionTarget(fruits[1].Instance); self.State = "NAVIGATING"; return end
+    -- 1. PRIORIDADE: ITENS, HOGYOKUS, PUZZLES E CHESTS (Toda sua lista integrada)
+    local checkList = {
+        { Ativo = self.Config.FruitSniper or self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
+        { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
+        { Ativo = self.Config.AutoCollect.Puzzles, Tipo = "Puzzles" },
+        { Ativo = self.Config.AutoCollect.Chests, Tipo = "Chests" }
+    }
+    
+    for _, configItem in ipairs(checkList) do
+        if configItem.Ativo then
+            local items = self.ItemCache:GetItems(configItem.Tipo)
+            if #items > 0 then 
+                -- Achou um item não listado na Blacklist!
+                self.TargetManager:SetInteractionTarget(items[1].Instance)
+                self.State = "COLLECTING" -- Pula o voo devagar, vai direto forçar a coleta igual ao seu script
+                return 
+            end
+        end
     end
     
-    -- 2. AUTO BOSS (Com Chat Monitor)
+    -- 2. AUTO BOSS
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         local bossTargetName = nil
         for _, b in ipairs(self.Config.SelectedBosses) do
@@ -200,7 +192,7 @@ function FSM:State_SEARCHING()
         end
     end
 
-    -- 4. AUTO MOB MANUAL E DUMMY
+    -- 4. AUTO DUMMY & MOB MANUAL
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
         if dummy then self.TargetManager:SetTarget(dummy); self.State = "NAVIGATING"; return end
@@ -214,6 +206,25 @@ function FSM:State_SEARCHING()
         end
     end
     
+    -- 🌍 5. MODO CAÇADOR DE FRAGMENTOS (Sua Lógica Perfeita)
+    -- Só roda se a FSM não encontrou nada acima e o Farm principal está desligado
+    local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
+    
+    if self.Config.AutoCollect.Hogyoku and not isFarmingActive then
+        local listaIlhas = self.Constants.QuestFilterOptions -- Mesma lista de ilhas para pular
+        if listaIlhas and #listaIlhas > 0 then
+            local ilhaDestino = listaIlhas[self.HogyokuIslandIndex]
+            
+            if self.CombatService:SmartIslandTeleport(ilhaDestino) then
+                -- Avança o Index para a próxima ilha para a próxima vez
+                self.HogyokuIslandIndex = self.HogyokuIslandIndex + 1
+                if self.HogyokuIslandIndex > #listaIlhas then
+                    self.HogyokuIslandIndex = 1
+                end
+            end
+        end
+    end
+
     self.State = "IDLE"
 end
 
@@ -237,26 +248,48 @@ function FSM:State_ATTACKING()
     self.CombatService:ExecuteAttack(target)
 end
 
+-- Sua Lógica de Teleporte Forçado e Blacklist aqui!
 function FSM:State_COLLECTING()
     local item = self.TargetManager:GetInteractionTarget()
     if not item then self.State = "SEARCHING"; return end
-    self.CombatService:MoveToTarget(item, 1.5)
     
-    local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
-    local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
+    -- Descongela para poder interagir sem bugs
+    self.CombatService:SetCharacterFrozen(false)
     
-    if prompt and fireproximityprompt then fireproximityprompt(prompt) end
-    if clicker and fireclickdetector then fireclickdetector(clicker) end
-    task.wait(0.5) -- Pausa rápida pós-coleta
+    -- Descobre a Posição Exata (Sua lógica)
+    local pos = nil
+    if item:IsA("BasePart") then pos = item.Position
+    elseif item:IsA("Model") and item.PrimaryPart then pos = item.PrimaryPart.Position
+    elseif item:IsA("Model") then 
+        local p = item:FindFirstChildWhichIsA("BasePart", true)
+        if p then pos = p.Position end
+    end
+    
+    local char = LP.Character
+    if char and char:FindFirstChild("HumanoidRootPart") and pos then
+        -- Teleporte Forçado CFrame (Sem Tweening)
+        char.HumanoidRootPart.CFrame = CFrame.new(pos + Vector3.new(0, 3, 0))
+        task.wait(0.5)
+        
+        -- Interage
+        local prompt = item:FindFirstChildWhichIsA("ProximityPrompt", true)
+        local clicker = item:FindFirstChildWhichIsA("ClickDetector", true)
+        if prompt and fireproximityprompt then fireproximityprompt(prompt) end
+        if clicker and fireclickdetector then fireclickdetector(clicker) end
+        
+        -- 🚫 PÕE NA BLACKLIST! O ItemCache nunca mais vai ver esse item.
+        self.ItemCache:IgnoreItem(item)
+        self.TargetManager:ClearInteractionTarget()
+        
+        task.wait(1.5) -- Espera processar igual no seu
+    end
+    
+    self.State = "SEARCHING"
 end
 
--- ==========================================
--- 🔍 FUNÇÕES AUXILIARES DE BUSCA (MOB/ILHA)
--- ==========================================
 function FSM:FindMob(typeStr, name)
     local myPos = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart") and LP.Character.HumanoidRootPart.Position or Vector3.zero
     local closest, minDist = nil, math.huge
-    
     local npcsFolder = Workspace:FindFirstChild("NPCs")
     if typeStr == "Dummy" and npcsFolder then
         for _, npc in ipairs(npcsFolder:GetChildren()) do if npc.Name == "TrainingDummy" or npc:GetAttribute("IsTrainingDummy") then return npc end end
@@ -304,7 +337,6 @@ function FSM:GetCurrentIsland()
     if not char or not char:FindFirstChild("HumanoidRootPart") then return "Starter" end
     local myPos = char.HumanoidRootPart.Position
     local closestIsland, minDist = "Starter", math.huge
-    
     local npcsFolder = Workspace:FindFirstChild("NPCs")
     if npcsFolder then
         for _, npc in pairs(npcsFolder:GetChildren()) do
@@ -323,22 +355,16 @@ function FSM:GetCurrentIsland()
 end
 
 function FSM:GetQuestData(island, name)
-    if self.Constants.QuestDataMap[island] then
-        for _, q in ipairs(self.Constants.QuestDataMap[island]) do if q.Name == name then return q end end
-    end
+    if self.Constants.QuestDataMap[island] then for _, q in ipairs(self.Constants.QuestDataMap[island]) do if q.Name == name then return q end end end
     return nil
 end
 
--- ==========================================
--- ⚙️ TAREFAS DE BACKGROUND (Itens, Status, Roleta)
--- ==========================================
 function FSM:HandleBackgroundTasks()
     local now = tick()
     if now - self.LastBackgroundTick < 1.5 then return end
     self.LastBackgroundTick = now
 
     pcall(function()
-        -- 1. Auto Stats
         if self.Config.AutoStats then
             local data = LP:FindFirstChild("Data")
             local AllocateRemote = ReplicatedStorage:FindFirstChild("AllocateStat", true)
@@ -347,17 +373,10 @@ function FSM:HandleBackgroundTasks()
                 if pts > 0 then for _, stat in ipairs(self.Config.SelectedStats) do AllocateRemote:FireServer(stat, pts) end end
             end
         end
-
-        -- 2. Auto Roleta & Baús
         local UseItemRemote = ReplicatedStorage:FindFirstChild("UseItem", true)
         if UseItemRemote then
-            if self.Config.AutoReroll.Race and LP:GetAttribute("CurrentRace") ~= self.Config.AutoReroll.TargetRace then 
-                UseItemRemote:FireServer("Use", "Race Reroll", 1, false) 
-            end
-            if self.Config.AutoReroll.Clan and LP:GetAttribute("CurrentClan") ~= self.Config.AutoReroll.TargetClan then 
-                UseItemRemote:FireServer("Use", "Clan Reroll", 1, false) 
-            end
-            
+            if self.Config.AutoReroll.Race and LP:GetAttribute("CurrentRace") ~= self.Config.AutoReroll.TargetRace then UseItemRemote:FireServer("Use", "Race Reroll", 1, false) end
+            if self.Config.AutoReroll.Clan and LP:GetAttribute("CurrentClan") ~= self.Config.AutoReroll.TargetClan then UseItemRemote:FireServer("Use", "Clan Reroll", 1, false) end
             local amount = self.Config.ChestOpenAmount or 1
             if self.Config.AutoOpenChests.Common then UseItemRemote:FireServer("Use", "Common Chest", amount, false) end
             if self.Config.AutoOpenChests.Rare then UseItemRemote:FireServer("Use", "Rare Chest", amount, false) end
@@ -365,8 +384,6 @@ function FSM:HandleBackgroundTasks()
             if self.Config.AutoOpenChests.Legendary then UseItemRemote:FireServer("Use", "Legendary Chest", amount, false) end
             if self.Config.AutoOpenChests.Mythical then UseItemRemote:FireServer("Use", "Mythical Chest", amount, false) end
         end
-
-        -- 3. Group Reward (Pega instantâneo se estiver livre)
         if self.Config.AutoGroupReward and self.State == "IDLE" then
             local npc = Workspace:FindFirstChild("ServiceNPCs") and Workspace.ServiceNPCs:FindFirstChild("GroupRewardNPC")
             if npc then self.TargetManager:SetInteractionTarget(npc); self.State = "NAVIGATING" end

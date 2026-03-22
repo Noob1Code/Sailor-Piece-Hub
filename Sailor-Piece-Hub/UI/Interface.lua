@@ -1,6 +1,9 @@
 -- =====================================================================
 -- 🖥️ UI: Interface.lua (Gerenciador Visual e Interação do Usuário)
 -- =====================================================================
+-- Constrói a UI e conecta os botões/toggles diretamente ao módulo Config.
+-- Não contém lógica de farm, apenas delega ações para o FSM e Services.
+-- =====================================================================
 
 local Players = game:GetService("Players")
 local CoreGui = game:GetService("CoreGui")
@@ -29,9 +32,7 @@ function Interface.new(Config, FSM, Constants)
     self._connections = {}
     
     local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or LP:WaitForChild("PlayerGui")
-    if uiParent:FindFirstChild("ComunidadeHubGUI") then 
-        uiParent.ComunidadeHubGUI:Destroy() 
-    end
+    if uiParent:FindFirstChild("ComunidadeHubGUI") then uiParent.ComunidadeHubGUI:Destroy() end
     
     self.ScreenGui = Instance.new("ScreenGui")
     self.ScreenGui.Name = "ComunidadeHubGUI"
@@ -116,7 +117,7 @@ function Interface.new(Config, FSM, Constants)
     NotifyLayout.Padding = UDim.new(0, 10)
 
     self:BuildTabs()
-    self:Notify("Hub Inicializado", "Todas as abas carregadas com sucesso!", 4)
+    self:Notify("Hub Inicializado", "Todas as abas foram carregadas com sucesso!", 4)
 
     return self
 end
@@ -234,10 +235,8 @@ function Interface:CreateTab(name, icon)
     Tab.Container = TabContent
 
     function Tab:CreateLabel(text)
-        local Label = Instance.new("TextLabel")
-        Label.Size = UDim2.new(1, 0, 0, 20); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(150, 150, 180)
-        Label.Text = text; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.GothamBold; Label.TextSize = 12
-        Label.Parent = self.Container
+        local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(1, 0, 0, 20); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(150, 150, 180)
+        Label.Text = text; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.GothamBold; Label.TextSize = 12; Label.Parent = self.Container
         return Label
     end
 
@@ -245,8 +244,7 @@ function Interface:CreateTab(name, icon)
         local baseColor = color or Color3.fromRGB(45, 100, 255)
         local hoverColor = Color3.fromRGB(math.clamp(baseColor.R*255 + 20, 0, 255), math.clamp(baseColor.G*255 + 20, 0, 255), math.clamp(baseColor.B*255 + 20, 0, 255))
         
-        local Btn = Instance.new("TextButton")
-        Btn.Size = UDim2.new(1, -5, 0, 32); Btn.BackgroundColor3 = baseColor
+        local Btn = Instance.new("TextButton"); Btn.Size = UDim2.new(1, -5, 0, 32); Btn.BackgroundColor3 = baseColor
         Btn.TextColor3 = Color3.fromRGB(255, 255, 255); Btn.Text = text; Btn.Font = Enum.Font.GothamSemibold
         Btn.TextSize = 13; Btn.Parent = self.Container; Btn.AutoButtonColor = false
         Instance.new("UICorner", Btn).CornerRadius = UDim.new(0, 4)
@@ -263,8 +261,7 @@ function Interface:CreateTab(name, icon)
     function Tab:CreateToggle(text, defaultState, callback)
         local state = defaultState
         local colorOn, colorOff = Color3.fromRGB(40, 180, 80), Color3.fromRGB(40, 40, 50)
-        local ToggleBtn = Instance.new("TextButton")
-        ToggleBtn.Size = UDim2.new(1, -5, 0, 32); ToggleBtn.BackgroundColor3 = state and colorOn or colorOff
+        local ToggleBtn = Instance.new("TextButton"); ToggleBtn.Size = UDim2.new(1, -5, 0, 32); ToggleBtn.BackgroundColor3 = state and colorOn or colorOff
         ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255); ToggleBtn.Text = text .. " [" .. (state and "ON" or "OFF") .. "]"
         ToggleBtn.Font = Enum.Font.GothamSemibold; ToggleBtn.TextSize = 13; ToggleBtn.Parent = self.Container; ToggleBtn.AutoButtonColor = false
         Instance.new("UICorner", ToggleBtn).CornerRadius = UDim.new(0, 4)
@@ -285,20 +282,15 @@ function Interface:CreateTab(name, icon)
     end
 
     function Tab:CreateDropdown(title, options, defaultOption, callback)
-        local DropFrame = Instance.new("Frame")
-        DropFrame.Size = UDim2.new(1, -5, 0, 32); DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
-        DropFrame.ClipsDescendants = true; DropFrame.Parent = self.Container
+        local DropFrame = Instance.new("Frame"); DropFrame.Size = UDim2.new(1, -5, 0, 32); DropFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40); DropFrame.ClipsDescendants = true; DropFrame.Parent = self.Container
         Instance.new("UICorner", DropFrame).CornerRadius = UDim.new(0, 4)
         
-        local MainBtn = Instance.new("TextButton")
-        MainBtn.Size = UDim2.new(1, 0, 0, 32); MainBtn.BackgroundTransparency = 1; MainBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
-        MainBtn.Text = "  " .. title .. ": " .. tostring(defaultOption); MainBtn.Font = Enum.Font.GothamSemibold
-        MainBtn.TextSize = 12; MainBtn.TextXAlignment = Enum.TextXAlignment.Left; MainBtn.Parent = DropFrame; MainBtn.AutoButtonColor = false
+        local MainBtn = Instance.new("TextButton"); MainBtn.Size = UDim2.new(1, 0, 0, 32); MainBtn.BackgroundTransparency = 1; MainBtn.TextColor3 = Color3.fromRGB(200, 200, 200)
+        MainBtn.Text = "  " .. title .. ": " .. tostring(defaultOption); MainBtn.Font = Enum.Font.GothamSemibold; MainBtn.TextSize = 12; MainBtn.TextXAlignment = Enum.TextXAlignment.Left; MainBtn.Parent = DropFrame; MainBtn.AutoButtonColor = false
         
         local Arrow = Instance.new("TextLabel"); Arrow.Size = UDim2.new(0, 30, 1, 0); Arrow.Position = UDim2.new(1, -30, 0, 0); Arrow.BackgroundTransparency = 1; Arrow.Text = "▼"; Arrow.TextColor3 = Color3.fromRGB(200, 200, 200); Arrow.Font = Enum.Font.GothamBold; Arrow.Parent = MainBtn
 
-        local ListFrame = Instance.new("ScrollingFrame")
-        ListFrame.Size = UDim2.new(1, 0, 1, -32); ListFrame.Position = UDim2.new(0, 0, 0, 32)
+        local ListFrame = Instance.new("ScrollingFrame"); ListFrame.Size = UDim2.new(1, 0, 1, -32); ListFrame.Position = UDim2.new(0, 0, 0, 32)
         ListFrame.BackgroundTransparency = 1; ListFrame.ScrollBarThickness = 2; ListFrame.Parent = DropFrame
         local ListLayout = Instance.new("UIListLayout"); ListLayout.Parent = ListFrame
         
@@ -314,8 +306,7 @@ function Interface:CreateTab(name, icon)
         local function refresh(newOptions)
             for _, b in pairs(ListFrame:GetChildren()) do if b:IsA("TextButton") then b:Destroy() end end
             for _, opt in ipairs(newOptions) do
-                local OptBtn = Instance.new("TextButton")
-                OptBtn.Size = UDim2.new(1, 0, 0, 28); OptBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
+                local OptBtn = Instance.new("TextButton"); OptBtn.Size = UDim2.new(1, 0, 0, 28); OptBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
                 OptBtn.TextColor3 = Color3.fromRGB(180, 180, 180); OptBtn.Text = "  " .. tostring(opt)
                 OptBtn.Font = Enum.Font.Gotham; OptBtn.TextSize = 12; OptBtn.TextXAlignment = Enum.TextXAlignment.Left; OptBtn.Parent = ListFrame; OptBtn.AutoButtonColor = false
                 
@@ -359,6 +350,56 @@ function Interface:BuildTabs()
     local c = self.Config
     local const = self.Constants
     
+    -- Funções Locais de Varredura (Substituem os Antigos getgenv())
+    local function getMobList(filter)
+        local mobs = {"Nenhum", "Todos"}
+        local seen = {}
+        local npcsFolder = Workspace:FindFirstChild("NPCs")
+        if npcsFolder then
+            for _, npc in pairs(npcsFolder:GetChildren()) do
+                if npc:FindFirstChild("Humanoid") and not npc:GetAttribute("IsTrainingDummy") then
+                    local baseName = npc.Name:gsub("%d+", "")
+                    if baseName ~= "" and not seen[baseName] and not baseName:lower():find("boss") then
+                        local addToList = false
+                        if filter == "Todas" or not filter then 
+                            addToList = true 
+                        else
+                            local filterData = const.IslandDataMap[filter]
+                            if filterData and filterData.Mobs then
+                                for _, prefix in ipairs(filterData.Mobs) do if baseName == prefix then addToList = true break end end
+                            end
+                        end
+                        if addToList then seen[baseName] = true; table.insert(mobs, baseName) end
+                    end
+                end
+            end
+        end
+        return mobs
+    end
+
+    local function getBossList(filter)
+        local bosses = {"Nenhum"}
+        if filter == "Todas" or not filter then
+            local allBosses = {"ThiefBoss", "MonkeyBoss", "DesertBoss", "SnowBoss", "PandaMiniBoss", "GojoBoss", "SukunaBoss", "YujiBoss", "JinwooBoss", "AizenBoss", "YamatoBoss", "AlucardBoss", "MadokaBoss", "Rimuru"}
+            for _, b in ipairs(allBosses) do table.insert(bosses, b) end
+        else
+            local filterData = const.IslandDataMap[filter]
+            if filterData and filterData.Bosses then
+                for _, b in ipairs(filterData.Bosses) do table.insert(bosses, b) end
+            end
+        end
+        return bosses
+    end
+
+    local function getWeaponList()
+        local weapons = {"Nenhuma"}
+        local char = LP.Character
+        local backpack = LP:FindFirstChild("Backpack")
+        if backpack then for _, tool in pairs(backpack:GetChildren()) do if tool:IsA("Tool") and not table.find(weapons, tool.Name) then table.insert(weapons, tool.Name) end end end
+        if char then for _, tool in pairs(char:GetChildren()) do if tool:IsA("Tool") and not table.find(weapons, tool.Name) then table.insert(weapons, tool.Name) end end end
+        return weapons
+    end
+
     -- ==========================================
     -- 📊 ABA 1: DASHBOARD
     -- ==========================================
@@ -370,7 +411,6 @@ function Interface:BuildTabs()
     local InfoBoss = TabDash:CreateLabel("Bônus Boss/Crit: Carregando...")
     local InfoPity = TabDash:CreateLabel("Sorte: Carregando...")
 
-    -- Atualizador Visual do Dashboard (Seguro, pois só lê atributos)
     task.spawn(function()
         while task.wait(1) do
             if not c.IsRunning then break end
@@ -397,7 +437,7 @@ function Interface:BuildTabs()
     TabMissions:CreateLabel("--------------------------------------------------------")
     TabMissions:CreateLabel("🎯 MODO MISSÃO MANUAL (FARM DE ITENS)")
     
-    local QuestDrop -- Declarado antes para ser referenciado
+    local QuestDrop 
     TabMissions:CreateDropdown("Escolha a Ilha", const.QuestFilterOptions, c.SelectedQuestIsland, function(s) 
         c.SelectedQuestIsland = s
         local questsDisp = {}
@@ -432,18 +472,22 @@ function Interface:BuildTabs()
     local TabCombat = self:CreateTab("Combate", "⚔️")
     TabCombat:CreateLabel("🔍 SISTEMA DE MAPA")
     
-    local MobDrop
+    local MobDrop, BossDrop
+    
+    TabCombat:CreateButton("Varrer Ilha (Atualizar NPCs Existentes)", function() 
+        local availableMobs = getMobList(c.SelectedFilter)
+        if MobDrop then MobDrop.Refresh(availableMobs) end 
+    end)
+
     TabCombat:CreateDropdown("Filtrar por Área", const.FilterOptions, "Todas", function(ilhaName)
-        local mobsDisp = {"Nenhum"}
-        if ilhaName == "Todas" then
-            table.insert(mobsDisp, "Todos")
-        elseif const.IslandDataMap[ilhaName] then
-            for _, m in ipairs(const.IslandDataMap[ilhaName].Mobs) do table.insert(mobsDisp, m) end
-        end
+        c.SelectedFilter = ilhaName
+        local mobsDisp = getMobList(ilhaName)
+        local bossesDisp = getBossList(ilhaName)
         if MobDrop then MobDrop.Refresh(mobsDisp) end
+        if BossDrop then BossDrop.Refresh(bossesDisp) end
     end)
     
-    MobDrop = TabCombat:CreateDropdown("Inimigo", {"Nenhum", "Todos"}, c.SelectedMob, function(s) 
+    MobDrop = TabCombat:CreateDropdown("Inimigo", getMobList("Todas"), c.SelectedMob, function(s) 
         c.SelectedMob = s; c:Save() 
     end)
     
@@ -463,8 +507,22 @@ function Interface:BuildTabs()
         end
     end
     
-    local BossDrop
-    TabCombat:CreateDropdown("Selecionar Boss", const.SummonBossList, c.SelectedBoss, function(s) 
+    TabCombat:CreateTextBox("Buscar Boss (Digite e Enter)", "", function(text)
+        local currentBosses = getBossList(c.SelectedFilter)
+        local filtered = {}
+        text = tostring(text):lower()
+        if text == "" then 
+            filtered = currentBosses 
+        else 
+            table.insert(filtered, "Nenhum")
+            for _, boss in ipairs(currentBosses) do 
+                if boss ~= "Nenhum" and boss:lower():find(text) then table.insert(filtered, boss) end 
+            end 
+        end
+        if BossDrop then BossDrop.Refresh(filtered) end
+    end)
+
+    BossDrop = TabCombat:CreateDropdown("Selecionar Boss", getBossList("Todas"), c.SelectedBoss, function(s) 
         c.SelectedBoss = s; c:Save() 
     end)
 
@@ -491,6 +549,23 @@ function Interface:BuildTabs()
         c:Save()
     end, Color3.fromRGB(200, 100, 60))
 
+    local AllBossesList = {
+        "ThiefBoss", "MonkeyBoss", "DesertBoss", "SnowBoss", 
+        "JinwooBoss", "AlucardBoss", "YujiBoss", "SukunaBoss", 
+        "GojoBoss", "PandaMiniBoss", "AizenBoss", "YamatoBoss", "GilgameshBoss"
+    }
+
+    TabCombat:CreateButton("🌍 Adicionar ALL BOSS na Fila", function()
+        for _, boss in ipairs(AllBossesList) do
+            if not table.find(c.SelectedBosses, boss) then
+                table.insert(c.SelectedBosses, boss)
+            end
+        end
+        UpdateBossListLabel()
+        c:Save()
+        self:Notify("All Boss", "Todos os bosses adicionados à fila de farm!", 3)
+    end, Color3.fromRGB(150, 40, 180))
+
     TabCombat:CreateToggle("Auto Boss (Fila)", c.AutoBoss, function(v) c.AutoBoss = v; c:Save() end)
     TabCombat:CreateToggle("Auto Training Dummy", c.AutoDummy, function(v) c.AutoDummy = v; c:Save() end)
 
@@ -507,7 +582,18 @@ function Interface:BuildTabs()
     TabCombat:CreateDropdown("Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, c.AttackPosition, function(s) c.AttackPosition = s; c:Save() end)
     TabCombat:CreateTextBox("Distância do Alvo (Studs)", c.Distance, function(v) c.Distance = tonumber(v) or 5; c:Save() end)
 
-    UpdateBossListLabel() -- Carrega visual inicial
+    TabCombat:CreateLabel("--------------------------------------------------------")
+    TabCombat:CreateLabel("🗡️ ESCOLHA SUA ARMA")
+    local WeaponDrop
+    TabCombat:CreateButton("Atualizar Lista de Armas no Inventário", function() 
+        local weps = getWeaponList()
+        if WeaponDrop then WeaponDrop.Refresh(weps) end 
+    end)
+    WeaponDrop = TabCombat:CreateDropdown("Arma para Auto Farm", getWeaponList(), c.SelectedWeapon, function(s) 
+        c.SelectedWeapon = s; c:Save() 
+    end)
+
+    UpdateBossListLabel() 
 
     -- ==========================================
     -- 🎒 ABA 4: ITENS

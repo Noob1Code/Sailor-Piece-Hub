@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Fix Sailor)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Boss Assíncrono)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -25,7 +25,6 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.HogyokuIslandIndex = 1
     
     self.BossState = {}
-    self.BossPatience = 0
     self.LastAutoBossState = false 
     
     self.QuestGuiCache = nil
@@ -65,7 +64,6 @@ function FSM:_InitChatMonitor()
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
                 if msg:find(baseName) then 
                     self.BossState[bossName] = "Pendente"
-                    self.BossPatience = 0 
                 end
             end
         elseif msg:find("defeated") or msg:find("foiderrotado") then
@@ -73,7 +71,6 @@ function FSM:_InitChatMonitor()
                 local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
                 if msg:find(baseName) then 
                     self.BossState[bossName] = "Morto"
-                    self.BossPatience = 0 
                 end
             end
         end
@@ -91,11 +88,11 @@ end
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
     
+    -- Reseta os estados se ligou AutoBoss agora
     if self.Config.AutoBoss and not self.LastAutoBossState then
         for _, b in ipairs(self.Config.SelectedBosses) do
             self.BossState[b] = "Pendente"
         end
-        self.BossPatience = 0
     end
     self.LastAutoBossState = self.Config.AutoBoss
     
@@ -132,11 +129,20 @@ function FSM:State_SEARCHING(deltaTime)
     deltaTime = deltaTime or 0.1
 
     local function checkAndNavigate(targetInstance, expectedIsland)
-        if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
-            self.CombatService:SmartIslandTeleport(expectedIsland)
+        if not targetInstance then return false end
+        
+        local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
+        if not hrp then return false end
+        
+        local targetPos = targetInstance:IsA("Model") and targetInstance.PrimaryPart and targetInstance.PrimaryPart.Position or targetInstance.Position
+        local dist = (hrp.Position - targetPos).Magnitude
+        
+        -- 🛑 REGRA CRÍTICA: Se a ilha for diferente OU distância maior que 720, Força o Teleporte.
+        if (expectedIsland and self:GetCurrentIsland() ~= expectedIsland) or dist > 720 then
+            local destIsland = expectedIsland or self:GetCurrentIsland()
+            self.CombatService:SmartIslandTeleport(destIsland)
             return true
         end
-        if not targetInstance then return false end
         
         if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
             self.TargetManager:SetTarget(targetInstance)
@@ -168,43 +174,41 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- 2. Máquina de Estados do Boss
+    -- 2. Máquina de Estados do Boss (Totalmente Assíncrona)
+    local actOnBoss = false
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
-        local bossTargetName = nil
-        for _, b in ipairs(self.Config.SelectedBosses) do
-            if self.BossState[b] == "Pendente" or self.BossState[b] == "Vivo" or not self.BossState[b] then 
-                bossTargetName = b
-                if not self.BossState[b] then self.BossState[b] = "Pendente" end
-                break 
-            end
-        end
-        
-        if bossTargetName then
-            local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
-            if targetIsland and self:GetCurrentIsland() ~= targetIsland then
-                self.BossPatience = 0
-                self.CombatService:SmartIslandTeleport(targetIsland)
-                return 
-            end
+        for _, bossTargetName in ipairs(self.Config.SelectedBosses) do
+            if self.BossState[bossTargetName] == "Pendente" or self.BossState[bossTargetName] == "Vivo" or not self.BossState[bossTargetName] then 
+                
+                local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
+                
+                -- Se não estiver na ilha, vai para lá investigar
+                if targetIsland and self:GetCurrentIsland() ~= targetIsland then
+                    self.CombatService:SmartIslandTeleport(targetIsland)
+                    actOnBoss = true
+                    break
+                end
 
-            local bTarget = self:FindMob("Boss", bossTargetName)
-            
-            if bTarget then
-                self.BossState[bossTargetName] = "Vivo"
-                self.BossPatience = 0
-                if checkAndNavigate(bTarget, targetIsland) then return end
-            else
-                self.BossPatience = self.BossPatience + deltaTime
-                if self.BossPatience > 5 then 
+                -- Já estamos na ilha, vamos caçar o boss
+                local bTarget = self:FindMob("Boss", bossTargetName)
+                
+                if bTarget then
+                    self.BossState[bossTargetName] = "Vivo"
+                    if checkAndNavigate(bTarget, targetIsland) then 
+                        actOnBoss = true
+                        break 
+                    end
+                else
+                    -- BOSS NÃO ENCONTRADO! Marca como morto e não bloqueia o fluxo do script.
                     self.BossState[bossTargetName] = "Morto"
-                    self.BossPatience = 0
                     self.TargetManager:ClearTarget()
                 end
-                self.CombatService:SetCharacterFrozen(false)
-                return 
             end
         end
     end
+    
+    -- Se estava trabalhando com algum Boss, encerra a checagem por aqui.
+    if actOnBoss then return end
 
     -- 3. Missões e Level
     if self.Config.AutoFarmMaxLevel or self.Config.AutoQuest then
@@ -233,7 +237,7 @@ function FSM:State_SEARCHING(deltaTime)
         end
     end
 
-    -- 4. Dummy e Mob
+    -- 4. Dummy e Mob (Fallback Base)
     if self.Config.AutoDummy then
         local dummy = self:FindMob("Dummy", "")
         if checkAndNavigate(dummy, self:GetCurrentIsland()) then return end
@@ -243,7 +247,7 @@ function FSM:State_SEARCHING(deltaTime)
         if checkAndNavigate(mob, targetIsland) then return end
     end
     
-    -- 5. Hogyoku Pulo Ilhas
+    -- 5. Hogyoku Pulo Ilhas (Apenas se oco)
     local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
     if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
         local listaIlhas = self.Constants and self.Constants.QuestFilterOptions or {}
@@ -274,6 +278,7 @@ function FSM:State_NAVIGATING()
     end
     
     if combatTarget then
+        -- MoveToTarget retorna True se estiver na posição ou false se precisar usar Tween/Teleport
         if self.CombatService:MoveToTarget(combatTarget) then self.State = "ATTACKING" end
     elseif interactTarget then
         if self.CombatService:MoveToTarget(interactTarget, 1.5) then self.State = "COLLECTING" end
@@ -287,7 +292,13 @@ function FSM:State_ATTACKING()
         self.State = "SEARCHING"
         return 
     end
-    if not self.CombatService:MoveToTarget(target) then self.State = "NAVIGATING"; return end
+    
+    -- Se tentar dar fallback do range, retorna a navegar
+    if not self.CombatService:MoveToTarget(target) then 
+        self.State = "NAVIGATING"
+        return 
+    end
+    
     self.CombatService:ExecuteAttack(target)
 end
 
@@ -386,18 +397,15 @@ function FSM:GetIslandByTarget(typeStr, name)
     return nil
 end
 
--- 🗺️ SISTEMA DE LOCALIZAÇÃO REESCRITO (Fix para Sailor Island)
 function FSM:GetCurrentIsland()
     local char = LP.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return "Starter" end
     local myPos = char.HumanoidRootPart.Position
     
-    -- ⚓ ÂNCORA MANUAL: Resolve o problema da Ilha Sailor
     local serviceNPCs = Workspace:FindFirstChild("ServiceNPCs")
     if serviceNPCs then
         local ascendNPC = serviceNPCs:FindFirstChild("AscendNPC")
         if ascendNPC then
-            -- Pega a posição real do NPC (Funciona para Model ou BasePart)
             local pos = ascendNPC:IsA("Model") and ascendNPC.PrimaryPart and ascendNPC.PrimaryPart.Position or (ascendNPC:IsA("BasePart") and ascendNPC.Position) or Vector3.new(252, 4, 715)
             if (myPos - pos).Magnitude < 1500 then
                 return "Sailor"

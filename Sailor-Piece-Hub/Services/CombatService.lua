@@ -68,16 +68,13 @@ function CombatService:SmartIslandTeleport(islandName)
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local oldPos = hrp and hrp.Position or Vector3.zero
 
-        -- Cancela voos anteriores para não bugar no meio do mar
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
         
-        -- Trava o personagem no ar para não cair enquanto carrega a ilha
         self:SetCharacterFrozen(true)
         
         self.Remotes.Teleport:FireServer(dest)
         self.LastTeleportTime = tick()
 
-        -- Aguarda confirmação do teleporte
         if hrp then
             for i = 1, 15 do 
                 task.wait(0.5)
@@ -88,7 +85,6 @@ function CombatService:SmartIslandTeleport(islandName)
         end
         
         task.wait(1.5) 
-        -- OBRIGATORIAMENTE Seta o spawn antes de liberar o personagem para combate
         self:AutoSaveSpawn() 
         return true
     end
@@ -111,7 +107,6 @@ function CombatService:AutoSaveSpawn()
                     local part = obj.Parent
                     if part and part:IsA("BasePart") then
                         local dist = (part.Position - myPos).Magnitude
-                        -- Ampliamos o range de busca de spawn na ilha
                         if dist < minDist and dist < 1500 then
                             minDist = dist; closestPrompt = obj; targetPart = part
                         end
@@ -121,7 +116,6 @@ function CombatService:AutoSaveSpawn()
         end
 
         if closestPrompt and targetPart then
-            -- Voa em segurança até o spawnpoint
             self:SetCharacterFrozen(true)
             local distance = (hrp.Position - targetPart.Position).Magnitude
             if distance > 10 then
@@ -139,7 +133,6 @@ function CombatService:AutoSaveSpawn()
             end
             task.wait(0.5)
             
-            -- Libera o boneco no chão e deixa livre
             self:SetCharacterFrozen(false)
             return true 
         end
@@ -149,7 +142,7 @@ function CombatService:AutoSaveSpawn()
 end
 
 -- ==========================================
--- 🏃 MOVIMENTAÇÃO E ATAQUE (BLINDADO ANTI-SPAM)
+-- 🏃 MOVIMENTAÇÃO E ATAQUE
 -- ==========================================
 function CombatService:MoveToTarget(targetInstance, customDistance)
     local char = LP.Character
@@ -183,8 +176,8 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
     local targetCFrame = CFrame.new(targetPos, targetTargetPos)
     local distance = (hrp.Position - targetPos).Magnitude
     
-    -- Aborta se a distância for bizarramente grande (deve teleportar antes)
-    if distance > 1000 then return false end
+    -- Aborta se for maior que 5000 (evita voar pelo mapa todo)
+    if distance > 5000 then return false end
     
     if distance > 15 then
         if self.CurrentTween and self.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then

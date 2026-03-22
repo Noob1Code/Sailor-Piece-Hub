@@ -19,9 +19,19 @@ end
 
 function UIController:_buildCombatTab()
     local TabCombat = self._window:CreateTab("Combate", "⚔️")
+    local TeleportData = Import("modules/TeleportService").new()
+
     TabCombat:CreateLabel("🎯 CONFIGURAÇÕES DE ALVO (MOBS)")
 
-    TabCombat:CreateDropdown("Selecionar Inimigo", {"Nenhum", "Thief", "Monkey", "DesertBandit"}, self._state:Get("SelectedMob"), function(value)
+    local listaIlhas = TeleportData:GetIslands()
+    local primeiraIlha = listaIlhas[1] or "Starter"
+    local mobDropdown
+    TabCombat:CreateDropdown("Filtrar por Ilha", listaIlhas, primeiraIlha, function(value)
+        local mobsDaIlha = TeleportData:GetMobsFromIsland(value)
+        if mobDropdown then mobDropdown.Refresh(mobsDaIlha) end
+    end)
+
+    mobDropdown = TabCombat:CreateDropdown("Selecionar Inimigo", TeleportData:GetMobsFromIsland(primeiraIlha), "Nenhum", function(value)
         self._state:Set("SelectedMob", value)
     end)
 

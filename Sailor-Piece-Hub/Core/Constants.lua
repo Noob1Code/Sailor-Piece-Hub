@@ -62,7 +62,7 @@ Constants.QuestDataMap = {
         {Name = "Quest 8: Boss (Snow Boss)", NPC = "QuestNPC8", Target = "SnowBoss", Type = "Boss"}
     },
     ["Sailor"] = {
-        {Name = "Âncora Sailor", NPC = "JinwooMovesetNPC", Target = "Nenhum", Type = "Mob"}
+        {Name = "Âncora Sailor", NPC = "AscendNPC", Target = "Nenhum", Type = "Mob"}
     },
     ["Shibuya"] = {
         {Name = "Quest 9: Mobs (Sorcerer)", NPC = "QuestNPC9", Target = "Sorcerer", Type = "Mob"}, 

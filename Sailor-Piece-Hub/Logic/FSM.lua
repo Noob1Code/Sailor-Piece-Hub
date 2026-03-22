@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro Blindado Anti-Crash V3)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado e Sincronizado V4)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -98,7 +98,7 @@ function FSM:Update(deltaTime)
     if self.IsCollecting then return end
 
     if self.State == "IDLE" then self:State_IDLE()
-    elseif self.State == "SEARCHING" then self:State_SEARCHING()
+    elseif self.State == "SEARCHING" then self:State_SEARCHING(deltaTime)
     elseif self.State == "NAVIGATING" then self:State_NAVIGATING()
     elseif self.State == "ATTACKING" then self:State_ATTACKING()
     elseif self.State == "COLLECTING" then self:State_COLLECTING()
@@ -109,8 +109,10 @@ function FSM:State_IDLE()
     self.State = "SEARCHING"
 end
 
-function FSM:State_SEARCHING()
-    -- 1. Coleta Terrestre
+function FSM:State_SEARCHING(deltaTime)
+    deltaTime = deltaTime or 0.1
+
+    -- 1. Coleta Terrestre Prioritária
     local checkList = {
         { Ativo = self.Config.FruitSniper or self.Config.AutoCollect.Fruits, Tipo = "Fruits" },
         { Ativo = self.Config.AutoCollect.Hogyoku, Tipo = "Hogyokus" },
@@ -131,28 +133,14 @@ function FSM:State_SEARCHING()
         end
     end
 
-    -- FUNÇÃO DE TRAVA DE DESLIZAMENTO (Previne voar pelo mar e obriga Teleporte)
-    local hrp = LP.Character and LP.Character:FindFirstChild("HumanoidRootPart")
-    local myPos = hrp and hrp.Position or Vector3.zero
-
+    -- FUNÇÃO DE NAVEGAÇÃO CENTRALIZADA
     local function checkAndNavigate(targetInstance, expectedIsland)
-        if not targetInstance then
-            if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
-                self.CombatService:SmartIslandTeleport(expectedIsland)
-                return true
-            end
-            return false
+        if expectedIsland and self:GetCurrentIsland() ~= expectedIsland then
+            self.CombatService:SmartIslandTeleport(expectedIsland)
+            return true
         end
+        if not targetInstance then return false end
         
-        local targetPos = targetInstance:IsA("Model") and targetInstance:FindFirstChild("HumanoidRootPart") and targetInstance.HumanoidRootPart.Position or targetInstance.Position
-        local distance = (myPos - targetPos).Magnitude
-        
-        -- Se o alvo estiver a mais de 800 studs, FORCE O TELEPORTE
-        if distance > 800 and expectedIsland then
-             self.CombatService:SmartIslandTeleport(expectedIsland)
-             return true
-        end
-
         if targetInstance:IsA("Model") and targetInstance:FindFirstChild("Humanoid") then
             self.TargetManager:SetTarget(targetInstance)
         else
@@ -162,29 +150,48 @@ function FSM:State_SEARCHING()
         return true
     end
 
-    -- 2. Prioridade Boss
+    -- 2. Lógica Refinada do Boss (Prioridade Máxima)
     if self.Config.AutoBoss and #self.Config.SelectedBosses > 0 then
         local bossTargetName = nil
         for _, b in ipairs(self.Config.SelectedBosses) do
+            -- Procura o primeiro da fila que não esteja confirmado como "Dead"
             if self.BossState[b] == "Alive" or not self.BossState[b] then bossTargetName = b; break end
         end
+        
         if bossTargetName then
-            local bTarget = self:FindMob("Boss", bossTargetName)
             local targetIsland = self:GetIslandByTarget("Boss", bossTargetName)
+            
+            -- Se o boss tá em outra ilha, teleporta e aborta essa rotina pra carregar a ilha em paz
+            if targetIsland and self:GetCurrentIsland() ~= targetIsland then
+                self.BossPatience = 0
+                self.CombatService:SmartIslandTeleport(targetIsland)
+                return 
+            end
+
+            -- Já estamos na ilha! Procura o boss no Workspace.
+            local bTarget = self:FindMob("Boss", bossTargetName)
             
             if bTarget then
                 self.BossState[bossTargetName] = "Alive"
                 self.BossPatience = 0
+                if checkAndNavigate(bTarget, targetIsland) then return end
             else
-                self.BossPatience = self.BossPatience + 1
-                if self.BossPatience > 10 then self.BossState[bossTargetName] = "Dead"; self.BossPatience = 0 end
+                -- PACIÊNCIA REAL (Aguardando renderização do jogo)
+                self.BossPatience = self.BossPatience + deltaTime
+                if self.BossPatience > 5 then -- Se passar de 5 segundos e não spawnar, ele morreu mesmo.
+                    self.BossState[bossTargetName] = "Dead"
+                    self.BossPatience = 0
+                    self.TargetManager:ClearTarget()
+                end
+                
+                -- Enquanto espera, descongela pra não travar o jogador atoa
+                self.CombatService:SetCharacterFrozen(false)
+                return -- Importante: Bloqueia a máquina pra ele não ir farmar Mobs enquanto espera o Boss
             end
-            
-            if checkAndNavigate(bTarget, targetIsland) then return end
         end
     end
 
-    -- 3. Prioridade Missões/Level
+    -- 3. Prioridade Missões/Level (Aqui ele cai quando o Boss morrer ou não tiver Boss na fila)
     if self.Config.AutoFarmMaxLevel or self.Config.AutoQuest then
         if self.Config.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
@@ -236,8 +243,7 @@ function FSM:State_SEARCHING()
         end
     end
 
-    -- IMPORTANTE: Se o código chegou até aqui, nenhuma tarefa foi ativada.
-    -- Então ele DESCONGELA o jogador para você ficar livre e voltar a andar.
+    -- Se nada foi selecionado, descongela o boneco
     self.CombatService:SetCharacterFrozen(false)
     self.State = "IDLE"
 end

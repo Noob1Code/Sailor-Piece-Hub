@@ -15,19 +15,23 @@ MainController.__index = MainController
 function MainController.new()
     local self = setmetatable({}, MainController)
     print("⏳ MainController: Iniciando injeção de dependências...")
-    
+
     self._stateManager = StateManager.new({
         AutoFarm = false, SelectedMob = "Nenhum", 
         AutoBoss = false, SelectedBosses = {}, SelectedSummonBoss = "Nenhum", AutoSummon = false,
         AttackPosition = "Atrás", Distance = 5, TweenSpeed = 150
     })
 
-    self._teleportService = TeleportService.new()
     self._loopController = LoopController.new()
     self._targetService = TargetService.new()
     self._combatService = CombatService.new(self._stateManager)
+    
+    local TeleportService = Import("modules/TeleportService")
+    self._teleportService = TeleportService.new()
+    
     self._autoFarmService = AutoFarmService.new(self._stateManager, self._targetService, self._combatService, self._teleportService)
-    self._bossService = BossService.new(self._stateManager, self._targetService, self._combatService, self._teleportService)
+    self._bossService = BossService.new(self._stateManager, self._targetService, self._combatService, self._teleportService) 
+
     self._uiController = UIController.new(self._stateManager)
 
     return self

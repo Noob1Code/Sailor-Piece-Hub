@@ -43,12 +43,17 @@ function AutoFarmService:Update()
     local targetName = self._state:Get("SelectedMob") or "Nenhum"
     
     if not currentTarget and targetName ~= "Nenhum" then
+        if self._teleport:IsSavingSpawn() then
+            return 
+        end
+
         currentTarget = self._target:FindNearestMob(targetName)
+        
         if not currentTarget then
             local islandNeeded = self._teleport:GetIslandByMob(targetName)
             if islandNeeded then
                 self._teleport:TeleportToIsland(islandNeeded)
-                self._teleport:SaveSpawn()
+                self._teleport:SaveSpawn(self._state:Get("TweenSpeed"))
             end
         end
     end

@@ -1,7 +1,7 @@
 -- =====================================================================
--- 🎯 SERVICES: TargetManager.lua (Gerenciador de Alvos e Memória)
+-- 🎯 SERVICES: TargetManager.lua
+-- Responsabilidade: Manter referência limpa dos alvos na memória.
 -- =====================================================================
-
 local TargetManager = {}
 TargetManager.__index = TargetManager
 

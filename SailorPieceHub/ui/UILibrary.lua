@@ -1,8 +1,3 @@
--- =========================================================================
--- 🎨 UILibrary (Motor Gráfico)
--- Extraído do antigo 4_Interface.lua. Apenas desenha botões, sem lógica.
--- =========================================================================
-
 local GameServices = Import("core/GameServices")
 local LP = GameServices.LocalPlayer
 local CoreGui = GameServices.CoreGui
@@ -17,10 +12,20 @@ function Library.new(title)
     self.Tabs = {}
     self.CurrentTab = nil
     
-    local uiParent = pcall(function() return CoreGui.Name end) and CoreGui or LP:WaitForChild("PlayerGui")
-    if uiParent:FindFirstChild("ComunidadeHubGUI") then uiParent.ComunidadeHubGUI:Destroy() end
+    local uiParent = nil
+    pcall(function() uiParent = gethui() end)
+    if not uiParent then pcall(function() uiParent = game:GetService("CoreGui") end) end
+    if not uiParent then uiParent = LP:WaitForChild("PlayerGui") end
+
+    if uiParent:FindFirstChild("ComunidadeHubGUI") then 
+        uiParent.ComunidadeHubGUI:Destroy() 
+    end
     
-    self.ScreenGui = Instance.new("ScreenGui"); self.ScreenGui.Name = "ComunidadeHubGUI"; self.ScreenGui.Parent = uiParent; self.ScreenGui.ResetOnSpawn = false
+    self.ScreenGui = Instance.new("ScreenGui")
+    self.ScreenGui.Name = "ComunidadeHubGUI"
+    self.ScreenGui.Parent = uiParent
+    self.ScreenGui.ResetOnSpawn = false
+
     self.MainFrame = Instance.new("Frame"); self.MainFrame.Size = UDim2.new(0, 540, 0, 460); self.MainFrame.Position = UDim2.new(0.5, -270, 0.5, -230); self.MainFrame.BackgroundColor3 = Color3.fromRGB(15, 15, 20); self.MainFrame.ClipsDescendants = true; self.MainFrame.Parent = self.ScreenGui
     Instance.new("UICorner", self.MainFrame).CornerRadius = UDim.new(0, 8)
     
@@ -265,6 +270,12 @@ function Library:CreateTab(name, icon)
     end
 
     return Tab
+end
+
+function Library:Destroy()
+    if self.ScreenGui then
+        self.ScreenGui:Destroy()
+    end
 end
 
 return Library

@@ -25,7 +25,7 @@ end
 print("⏳ Iniciando Hub (Arquitetura Modular OOP)...")
 
 -- =====================================================================
--- 🛡️ SISTEMA ANTI-AFK (Global do Cliente)
+-- 🛡️ SISTEMA ANTI-AFK (Responsabilidade Global)
 -- =====================================================================
 pcall(function()
     local Players = game:GetService("Players")
@@ -38,7 +38,7 @@ pcall(function()
 end)
 
 -- =====================================================================
--- ⚙️ INJEÇÃO DE DEPENDÊNCIAS
+-- ⚙️ INJEÇÃO DE DEPENDÊNCIAS (POO)
 -- =====================================================================
 local Constants = requireModule("Core/Constants")
 local Config = requireModule("Core/Config")
@@ -46,17 +46,17 @@ if not Constants or not Config then return warn("❌ Falha ao carregar os dados 
 
 local Workspace = game:GetService("Workspace")
 
--- Instanciação dos Serviços (SRP)
+-- Instanciação dos Serviços
 local ItemCache = requireModule("Services/ItemCache").new(Workspace)
 local TargetManager = requireModule("Services/TargetManager").new()
 local CombatService = requireModule("Services/CombatService").new(Constants, Config)
 
--- Instanciação da Lógica e UI
+-- Instanciação da Lógica Central e Interface
 local FSM = requireModule("Logic/FSM").new(TargetManager, Config, CombatService, ItemCache, Constants)
 local UI = requireModule("UI/Interface").new(Config, FSM, Constants, CombatService)
 
 -- =====================================================================
--- 🔄 MOTOR DE EXECUÇÃO (Loop Central)
+-- 🔄 MOTOR DE EXECUÇÃO
 -- =====================================================================
 local RunService = game:GetService("RunService")
 local mainConnection = RunService.Heartbeat:Connect(function(deltaTime)
@@ -67,7 +67,9 @@ end)
 
 print("✅ Comunidade Hub V2 carregado com sucesso!")
 
--- Rotina de Limpeza
+-- =====================================================================
+-- 🧹 ROTINA DE DESLIGAMENTO SEGURO
+-- =====================================================================
 _G.ComunidadeHub_Cleanup = function()
     print("🧹 Encerrando instâncias do Hub...")
     if mainConnection then mainConnection:Disconnect() end
@@ -76,4 +78,11 @@ _G.ComunidadeHub_Cleanup = function()
     if UI and typeof(UI.Destroy) == "function" then UI:Destroy() end
     if ItemCache and typeof(ItemCache.Destroy) == "function" then ItemCache:Destroy() end
     if TargetManager and typeof(TargetManager.Destroy) == "function" then TargetManager:Destroy() end
+    pcall(function()
+        local LP = game:GetService("Players").LocalPlayer
+        LP:SetAttribute("RaceExtraJumps", 0)
+        LP:SetAttribute("DisableScreenShake", false)
+        LP:SetAttribute("DisableCutscene", false)
+        LP:SetAttribute("DisablePvP", false)
+    end)
 end

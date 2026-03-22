@@ -1,7 +1,7 @@
 -- =====================================================================
--- 🎒 SERVICES: ItemCache.lua (Sistema Otimizado com Blacklist)
+-- 🎒 SERVICES: ItemCache.lua
+-- Responsabilidade: Indexar itens do mapa e lidar com Fruit Sniper.
 -- =====================================================================
-
 local ItemCache = {}
 ItemCache.__index = ItemCache
 
@@ -12,10 +12,21 @@ function ItemCache.new(workspaceInstance)
     self.Cache = { Fruits = {}, Hogyokus = {}, Puzzles = {}, Chests = {} }
     self.Blacklist = {}
     
-    for _, obj in ipairs(self.Workspace:GetDescendants()) do self:Categorize(obj) end
-    table.insert(self._connections, self.Workspace.DescendantAdded:Connect(function(obj) task.delay(0.1, function() if obj and obj.Parent then self:Categorize(obj) end end) end))
-    table.insert(self._connections, self.Workspace.DescendantRemoving:Connect(function(obj) self:Uncategorize(obj) end))
+    -- Fruit Sniper Callback Injection (Setado pelo FSM)
+    self.OnFruitSpawned = nil
     
+    for _, obj in ipairs(self.Workspace:GetDescendants()) do self:Categorize(obj) end
+    
+    table.insert(self._connections, self.Workspace.DescendantAdded:Connect(function(obj) 
+        task.delay(0.1, function() 
+            if obj and obj.Parent then 
+                self:Categorize(obj) 
+                if self.OnFruitSpawned then self.OnFruitSpawned(obj) end
+            end 
+        end) 
+    end))
+    
+    table.insert(self._connections, self.Workspace.DescendantRemoving:Connect(function(obj) self:Uncategorize(obj) end))
     return self
 end
 
@@ -26,7 +37,8 @@ end
 function ItemCache:Categorize(obj)
     if typeof(obj) ~= "Instance" or self.Blacklist[obj] then return end 
     local name = string.lower(obj.Name)
-    if (name:find("fruit") or name:find("fruta")) and not name:find("dealer") and not name:find("npc") then self.Cache.Fruits[obj] = true
+    if (name:find("fruit") or name:find("fruta")) and not name:find("dealer") and not name:find("npc") and not obj:FindFirstChild("Humanoid") then 
+        self.Cache.Fruits[obj] = true
     elseif name:find("hogyoku") or name:find("fragment") then self.Cache.Hogyokus[obj] = true
     elseif name:find("puzzlepiece") or name:find("puzzle") then self.Cache.Puzzles[obj] = true
     elseif name:find("box") or name:find("chest") then self.Cache.Chests[obj] = true end
@@ -53,7 +65,7 @@ end
 
 function ItemCache:Destroy()
     for _, conn in ipairs(self._connections) do if conn then conn:Disconnect() end end
-    self._connections = {}; self.Cache = nil; self.Blacklist = nil
+    self._connections = {}; self.Cache = nil; self.Blacklist = nil; self.OnFruitSpawned = nil
 end
 
 return ItemCache

@@ -1,6 +1,6 @@
 -- =====================================================================
 -- 🎯 SERVICES: TargetManager.lua
--- Responsabilidade: Manter referência limpa dos alvos na memória.
+-- Responsabilidade: Gerir as referências de memória para evitar erros.
 -- =====================================================================
 local TargetManager = {}
 TargetManager.__index = TargetManager
@@ -46,7 +46,9 @@ function TargetManager:SetInteractionTarget(npcInstance)
     end
 end
 
-function TargetManager:GetInteractionTarget() return self.InteractionTarget end
+function TargetManager:GetInteractionTarget() 
+    return self.InteractionTarget 
+end
 
 function TargetManager:ClearInteractionTarget()
     self.InteractionTarget = nil

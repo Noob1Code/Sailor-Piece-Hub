@@ -16,10 +16,9 @@ function CombatService.new(Constants, Config)
     self.Config = Config
     self.OrbitAngle = 0
     self.LastAttackTime = 0
-    self.AttackCooldown = 0.1 -- Velocidade de ataque otimizada
+    self.AttackCooldown = 0.1
     self.LastTeleportTime = 0
     
-    -- Variáveis para controle do Tween (Proteção Anti-Crash)
     self.CurrentTween = nil
     self.LastTweenTargetPos = nil
     
@@ -69,12 +68,16 @@ function CombatService:SmartIslandTeleport(islandName)
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         local oldPos = hrp and hrp.Position or Vector3.zero
 
-        self:SetCharacterFrozen(false)
+        -- Cancela voos anteriores para não bugar no meio do mar
         if self.CurrentTween then self.CurrentTween:Cancel(); self.CurrentTween = nil end
+        
+        -- Trava o personagem no ar para não cair enquanto carrega a ilha
+        self:SetCharacterFrozen(true)
         
         self.Remotes.Teleport:FireServer(dest)
         self.LastTeleportTime = tick()
 
+        -- Aguarda confirmação do teleporte
         if hrp then
             for i = 1, 15 do 
                 task.wait(0.5)
@@ -85,6 +88,7 @@ function CombatService:SmartIslandTeleport(islandName)
         end
         
         task.wait(1.5) 
+        -- OBRIGATORIAMENTE Seta o spawn antes de liberar o personagem para combate
         self:AutoSaveSpawn() 
         return true
     end
@@ -107,7 +111,8 @@ function CombatService:AutoSaveSpawn()
                     local part = obj.Parent
                     if part and part:IsA("BasePart") then
                         local dist = (part.Position - myPos).Magnitude
-                        if dist < minDist and dist < 800 then
+                        -- Ampliamos o range de busca de spawn na ilha
+                        if dist < minDist and dist < 1500 then
                             minDist = dist; closestPrompt = obj; targetPart = part
                         end
                     end
@@ -116,6 +121,8 @@ function CombatService:AutoSaveSpawn()
         end
 
         if closestPrompt and targetPart then
+            -- Voa em segurança até o spawnpoint
+            self:SetCharacterFrozen(true)
             local distance = (hrp.Position - targetPart.Position).Magnitude
             if distance > 10 then
                 local tween = TweenService:Create(hrp, TweenInfo.new(distance / 150, Enum.EasingStyle.Linear), {CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)})
@@ -123,14 +130,21 @@ function CombatService:AutoSaveSpawn()
             else
                 hrp.CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)
             end
+            
+            hrp.Velocity = Vector3.zero
             task.wait(0.5)
+            
             if fireproximityprompt then 
                 fireproximityprompt(closestPrompt); task.wait(0.2); fireproximityprompt(closestPrompt)
             end
             task.wait(0.5)
+            
+            -- Libera o boneco no chão e deixa livre
+            self:SetCharacterFrozen(false)
             return true 
         end
     end)
+    self:SetCharacterFrozen(false)
     return false
 end
 
@@ -169,12 +183,11 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
     local targetCFrame = CFrame.new(targetPos, targetTargetPos)
     local distance = (hrp.Position - targetPos).Magnitude
     
+    -- Aborta se a distância for bizarramente grande (deve teleportar antes)
     if distance > 1000 then return false end
     
     if distance > 15 then
-        -- 🛡️ PROTEÇÃO ANTI-SPAM DE TWEEN (Resolve o crash de memória)
         if self.CurrentTween and self.CurrentTween.PlaybackState == Enum.PlaybackState.Playing then
-            -- Se o alvo se moveu mais de 10 studs, recalcula a rota. Senão, continua voando.
             if self.LastTweenTargetPos and (self.LastTweenTargetPos - targetPos).Magnitude > 10 then
                 self.CurrentTween:Cancel()
             else
@@ -188,7 +201,6 @@ function CombatService:MoveToTarget(targetInstance, customDistance)
         self.CurrentTween:Play()
         return false
     else
-        -- Quando chega perto do alvo, cancela o tween de voo e trava a posição para bater
         if self.CurrentTween then 
             self.CurrentTween:Cancel() 
             self.CurrentTween = nil 

@@ -1,6 +1,6 @@
 -- =====================================================================
 -- ⚙️ CORE: Config.lua
--- Responsabilidade: Manter o estado das configurações do usuário.
+-- Responsabilidade: Manter o estado das configurações do utilizador.
 -- =====================================================================
 local HttpService = game:GetService("HttpService")
 
@@ -9,34 +9,28 @@ local Config = {
     CurrentSpawnIsland = "Nenhuma",
     SelectedIslandFilter = "Todas",
     
-    -- Combate
     Distance = 5,
     TweenSpeed = 150,
     AttackPosition = "Atrás",
     SelectedWeapon = "Nenhuma",
     
-    -- Alvos
     AutoFarm = false, SelectedMob = "Nenhum",
     AutoBoss = false, SelectedBoss = "Nenhum", SelectedBosses = {},
     AutoSummon = false, SelectedSummonBoss = "Nenhum",
     AutoDummy = false,
     
-    -- Missões
     AutoQuest = false, SelectedQuestIsland = "Starter", SelectedQuest = nil,
     AutoFarmMaxLevel = false,
     
-    -- Itens
     AutoCollect = { Fruits = false, Hogyoku = false, Puzzles = false, Chests = false },
     AutoGroupReward = false, FruitSniper = false,
     
-    -- Status & Reroll
     AutoStats = false, SelectedStats = {}, ManualStat = "Melee", ManualAmount = 1,
     ChestOpenAmount = 1,
     AutoOpenChests = { Common = false, Rare = false, Epic = false, Legendary = false, Mythical = false },
     AutoReroll = { Race = false, TargetRace = "Kitsune", Clan = false, TargetClan = "Gojo" },
     AutoTrait = false, AutoStatReroll = false, SelectedStatToReroll = "Damage",
     
-    -- Misc
     SuperSpeed = false, SpeedMultiplier = 2, InfJump = false,
     HacksNativos = { HakiArmamento = false, HakiObservacao = false, NoShake = false, NoCutscene = false, DisablePvP = false, PuloExtra = false }
 }

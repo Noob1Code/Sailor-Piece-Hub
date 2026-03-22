@@ -1,5 +1,8 @@
 -- =====================================================================
--- 🖥️ UI: Interface.lua (Gerenciador Visual - CORRIGIDO)
+-- 🖥️ UI: Interface.lua (Gerenciador Visual e Interação do Usuário)
+-- =====================================================================
+-- Constrói a UI e conecta os botões/toggles diretamente ao módulo Config.
+-- Não contém lógica de farm, apenas delega ações para o FSM e Services.
 -- =====================================================================
 
 local Players = game:GetService("Players")
@@ -13,6 +16,10 @@ local LP = Players.LocalPlayer
 
 local Interface = {}
 Interface.__index = Interface
+
+-- ==========================================
+-- 🏗️ CONSTRUTOR DA INTERFACE
+-- ==========================================
 
 function Interface.new(Config, FSM, Constants)
     local self = setmetatable({}, Interface)
@@ -44,7 +51,7 @@ function Interface.new(Config, FSM, Constants)
     TitleBar.Size = UDim2.new(1, 0, 0, 40)
     TitleBar.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
     TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
-    TitleBar.Text = "   🌟 Comunidade Hub V3.0 (Sailor Piece)"
+    TitleBar.Text = "   🌟 Comunidade Hub V3.0 (Modular)"
     TitleBar.Font = Enum.Font.GothamBold
     TitleBar.TextSize = 14
     TitleBar.TextXAlignment = Enum.TextXAlignment.Left
@@ -114,6 +121,10 @@ function Interface.new(Config, FSM, Constants)
 
     return self
 end
+
+-- ==========================================
+-- 🛠️ FUNÇÕES INTERNAS DE UI
+-- ==========================================
 
 function Interface:MakeDraggable(topbar, frame)
     local dragging, dragInput, dragStart, startPos
@@ -224,32 +235,9 @@ function Interface:CreateTab(name, icon)
     Tab.Container = TabContent
 
     function Tab:CreateLabel(text)
-        local Label = Instance.new("TextLabel")
-        Label.Size = UDim2.new(1, 0, 0, 20)
-        Label.BackgroundTransparency = 1
-        Label.TextColor3 = Color3.fromRGB(150, 150, 180)
-        Label.Text = text
-        Label.TextXAlignment = Enum.TextXAlignment.Left
-        Label.Font = Enum.Font.GothamBold
-        Label.TextSize = 12
-        Label.TextWrapped = true -- Impede texto gigante de quebrar
-        Label.Parent = self.Container
+        local Label = Instance.new("TextLabel"); Label.Size = UDim2.new(1, 0, 0, 20); Label.BackgroundTransparency = 1; Label.TextColor3 = Color3.fromRGB(150, 150, 180)
+        Label.Text = text; Label.TextXAlignment = Enum.TextXAlignment.Left; Label.Font = Enum.Font.GothamBold; Label.TextSize = 12; Label.Parent = self.Container
         return Label
-    end
-
-    -- NOVO: Separador real para não usar traços que quebram a UI
-    function Tab:CreateSeparator(iconText)
-        local Container = Instance.new("Frame")
-        Container.Size = UDim2.new(1, -5, 0, 20)
-        Container.BackgroundTransparency = 1
-        Container.Parent = self.Container
-        
-        local Line = Instance.new("Frame")
-        Line.Size = UDim2.new(1, 0, 0, 1)
-        Line.Position = UDim2.new(0, 0, 0.5, 0)
-        Line.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
-        Line.BorderSizePixel = 0
-        Line.Parent = Container
     end
 
     function Tab:CreateButton(text, callback, color)
@@ -362,6 +350,7 @@ function Interface:BuildTabs()
     local c = self.Config
     local const = self.Constants
     
+    -- Funções Locais de Varredura (Substituem os Antigos getgenv())
     local function getMobList(filter)
         local mobs = {"Nenhum", "Todos"}
         local seen = {}
@@ -445,7 +434,7 @@ function Interface:BuildTabs()
         if v then c.AutoQuest = false end
         c:Save()
     end)
-    TabMissions:CreateSeparator()
+    TabMissions:CreateLabel("--------------------------------------------------------")
     TabMissions:CreateLabel("🎯 MODO MISSÃO MANUAL (FARM DE ITENS)")
     
     local QuestDrop 
@@ -506,7 +495,7 @@ function Interface:BuildTabs()
         c.AutoFarm = v; c:Save() 
     end)
 
-    TabCombat:CreateSeparator()
+    TabCombat:CreateLabel("--------------------------------------------------------")
     TabCombat:CreateLabel("👑 FILA DE BOSSES")
     local BossListLabel = TabCombat:CreateLabel("Fila: Nenhuma")
 
@@ -580,20 +569,20 @@ function Interface:BuildTabs()
     TabCombat:CreateToggle("Auto Boss (Fila)", c.AutoBoss, function(v) c.AutoBoss = v; c:Save() end)
     TabCombat:CreateToggle("Auto Training Dummy", c.AutoDummy, function(v) c.AutoDummy = v; c:Save() end)
 
-    TabCombat:CreateSeparator()
+    TabCombat:CreateLabel("--------------------------------------------------------")
     TabCombat:CreateLabel("🔮 INVOCAÇÃO DE BOSS (SUMMON)")
     TabCombat:CreateDropdown("Boss para Invocar", const.SummonBossList, c.SelectedSummonBoss or "Nenhum", function(s) 
         c.SelectedSummonBoss = s; c:Save() 
     end)
     TabCombat:CreateToggle("Auto Invocar e Farmar", c.AutoSummon, function(v) c.AutoSummon = v; c:Save() end)
 
-    TabCombat:CreateSeparator()
+    TabCombat:CreateLabel("--------------------------------------------------------")
     TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE COMBATE E MOVIMENTO")
     TabCombat:CreateTextBox("Velocidade do Voo", c.TweenSpeed, function(v) c.TweenSpeed = tonumber(v) or 150; c:Save() end)
     TabCombat:CreateDropdown("Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, c.AttackPosition, function(s) c.AttackPosition = s; c:Save() end)
     TabCombat:CreateTextBox("Distância do Alvo (Studs)", c.Distance, function(v) c.Distance = tonumber(v) or 5; c:Save() end)
 
-    TabCombat:CreateSeparator()
+    TabCombat:CreateLabel("--------------------------------------------------------")
     TabCombat:CreateLabel("🗡️ ESCOLHA SUA ARMA")
     local WeaponDrop
     TabCombat:CreateButton("Atualizar Lista de Armas no Inventário", function() 
@@ -621,7 +610,7 @@ function Interface:BuildTabs()
     -- ==========================================
     local TabStats = self:CreateTab("Status", "📈")
     local InfoPoints = TabStats:CreateLabel("Pontos Disponíveis: Carregando...")
-    TabStats:CreateSeparator()
+    TabStats:CreateLabel("--------------------------------------------------------")
     TabStats:CreateLabel("DISTRIBUIÇÃO MANUAL")
     TabStats:CreateDropdown("Atributo", const.StatsList, c.ManualStat, function(s) c.ManualStat = s; c:Save() end)
     TabStats:CreateTextBox("Quantidade", c.ManualAmount, function(v) c.ManualAmount = tonumber(v) or 1; c:Save() end)
@@ -630,7 +619,7 @@ function Interface:BuildTabs()
         if AllocateStatRemote then AllocateStatRemote:FireServer(c.ManualStat, c.ManualAmount) end 
     end, Color3.fromRGB(40, 150, 80))
     
-    TabStats:CreateSeparator()
+    TabStats:CreateLabel("--------------------------------------------------------")
     TabStats:CreateLabel("DISTRIBUIÇÃO AUTOMÁTICA (DIVISÃO)")
     for _, stat in ipairs(const.StatsList) do
         local isSelected = table.find(c.SelectedStats, stat) ~= nil
@@ -670,7 +659,7 @@ function Interface:BuildTabs()
     local TabRoleta = self:CreateTab("Roleta", "🎲")
     TabRoleta:CreateTextBox("Raça Sniper", c.AutoReroll.TargetRace, function(v) c.AutoReroll.TargetRace = tostring(v); c:Save() end)
     TabRoleta:CreateToggle("Iniciar Sniper Raça", c.AutoReroll.Race, function(v) c.AutoReroll.Race = v; c:Save() end)
-    TabRoleta:CreateSeparator()
+    TabRoleta:CreateLabel("--------------------------------------------------------")
     TabRoleta:CreateLabel("📦 ABERTURA DE BAÚS")
     TabRoleta:CreateTextBox("Quantidade (9999 = Máximo)", c.ChestOpenAmount or 1, function(v) c.ChestOpenAmount = tonumber(v) or 1; c:Save() end)
     TabRoleta:CreateToggle("Abrir Baús Comuns", c.AutoOpenChests.Common, function(v) c.AutoOpenChests.Common = v; c:Save() end)

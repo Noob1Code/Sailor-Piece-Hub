@@ -1,5 +1,5 @@
 -- =====================================================================
--- 🧠 LOGIC: FSM.lua (Cérebro com Caçador de Ilhas e Blacklist)
+-- 🧠 LOGIC: FSM.lua (Cérebro Blindado Anti-Crash)
 -- =====================================================================
 local Players = game:GetService("Players")
 local Workspace = game:GetService("Workspace")
@@ -16,7 +16,15 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.Config = Config
     self.CombatService = CombatService
     self.ItemCache = ItemCache
-    self.Constants = Constants
+    
+    -- 🛡️ ESCUDO: Se o script principal esquecer de enviar o Constants, ele não crasha mais.
+    self.Constants = Constants or {
+        QuestFilterOptions = {},
+        QuestDataMap = {},
+        IslandDataMap = {},
+        QuestProgression = {}
+    }
+    
     self.State = "IDLE"
     self.LastBackgroundTick = 0
     
@@ -25,7 +33,6 @@ function FSM.new(TargetManager, Config, CombatService, ItemCache, Constants)
     self.BossPatience = 0
     self.QuestGuiCache = nil
     
-    -- 🔒 Trava de Segurança Anti-Lag
     self.IsCollecting = false
     
     self:_InitChatMonitor()
@@ -93,7 +100,6 @@ end
 function FSM:Update(deltaTime)
     self:HandleBackgroundTasks()
     
-    -- 🛑 Impede a FSM de ler frames enquanto coleta ou viaja
     if self.IsCollecting then return end
 
     if self.State == "IDLE" then self:State_IDLE()
@@ -166,8 +172,12 @@ function FSM:State_SEARCHING()
         if self.Config.AutoFarmMaxLevel then
             local data = LP:FindFirstChild("Data")
             local lvl = data and data:FindFirstChild("Level") and data.Level.Value or 1
-            for _, q in ipairs(self.Constants.QuestProgression) do
-                if lvl >= q.MinLevel then self.Config.SelectedQuestIsland = q.Island; self.Config.SelectedQuest = q.Quest else break end
+            
+            -- 🛡️ Blindagem de Acesso Seguro
+            if self.Constants and self.Constants.QuestProgression then
+                for _, q in ipairs(self.Constants.QuestProgression) do
+                    if lvl >= q.MinLevel then self.Config.SelectedQuestIsland = q.Island; self.Config.SelectedQuest = q.Quest else break end
+                end
             end
         end
 
@@ -211,7 +221,8 @@ function FSM:State_SEARCHING()
     local isFarmingActive = self.Config.AutoBoss or self.Config.AutoFarmMaxLevel or self.Config.AutoQuest or self.Config.AutoFarm or self.Config.AutoDummy
     
     if self.Config.AutoCollect.Hogyoku and not achouItem and not isFarmingActive then
-        local listaIlhas = self.Constants.QuestFilterOptions 
+        -- 🛡️ Blindagem de Acesso Seguro
+        local listaIlhas = self.Constants and self.Constants.QuestFilterOptions or {}
         if listaIlhas and #listaIlhas > 0 then
             if self.HogyokuIslandIndex > #listaIlhas then self.HogyokuIslandIndex = 1 end
             
@@ -220,7 +231,6 @@ function FSM:State_SEARCHING()
             if self.CombatService:SmartIslandTeleport(ilhaDestino) then
                 self.HogyokuIslandIndex = self.HogyokuIslandIndex + 1
                 
-                -- 🛑 Pausa Assíncrona para não engasgar o carregamento da ilha nova
                 self.IsCollecting = true
                 task.spawn(function()
                     task.wait(3.5)
@@ -259,7 +269,6 @@ function FSM:State_COLLECTING()
     
     self.CombatService:SetCharacterFrozen(false)
     
-    -- 🛑 Dispara a thread separada protegida por self.IsCollecting
     if self.IsCollecting then return end
     self.IsCollecting = true
     
@@ -292,7 +301,6 @@ function FSM:State_COLLECTING()
             self.TargetManager:ClearInteractionTarget()
         end
         
-        -- Libera a FSM e retorna à busca
         self.State = "SEARCHING"
         self.IsCollecting = false
     end)
@@ -336,9 +344,15 @@ function FSM:FindMob(typeStr, name)
 end
 
 function FSM:GetIslandByTarget(typeStr, name)
+    -- 🛡️ Blindagem: Se não achar o banco de dados das ilhas, aborta sem dar crash
+    if not self.Constants or not self.Constants.IslandDataMap then return nil end
+    
     for island, data in pairs(self.Constants.IslandDataMap) do
-        if typeStr == "Mob" then for _, mob in ipairs(data.Mobs) do if mob == name then return island end end
-        elseif typeStr == "Boss" then for _, boss in ipairs(data.Bosses) do if boss == name then return island end end end
+        if typeStr == "Mob" and data.Mobs then 
+            for _, mob in ipairs(data.Mobs) do if mob == name then return island end end
+        elseif typeStr == "Boss" and data.Bosses then 
+            for _, boss in ipairs(data.Bosses) do if boss == name then return island end end 
+        end
     end
     return nil
 end
@@ -366,7 +380,12 @@ function FSM:GetCurrentIsland()
 end
 
 function FSM:GetQuestData(island, name)
-    if self.Constants.QuestDataMap[island] then for _, q in ipairs(self.Constants.QuestDataMap[island]) do if q.Name == name then return q end end end
+    -- 🛡️ Blindagem: Protege contra crash caso o mapa de quests não exista
+    if not self.Constants or not self.Constants.QuestDataMap or not self.Constants.QuestDataMap[island] then return nil end
+    
+    for _, q in ipairs(self.Constants.QuestDataMap[island]) do 
+        if q.Name == name then return q end 
+    end
     return nil
 end
 

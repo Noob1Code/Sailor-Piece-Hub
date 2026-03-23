@@ -29,27 +29,21 @@ function AutoFarmService:Update()
     
     if targetName == "Nenhum" then return end
 
-    local currentTarget = self._target:FindNearestMob(targetName)
-    
-    if not currentTarget then
-        local TeleportData = Import("modules/TeleportService").new()
-        local islandNeeded = nil
-        for island, data in pairs(getgenv().IslandDataMap or {}) do 
-            if data.Mobs and table.find(data.Mobs, targetName) then islandNeeded = island; break end 
-        end
+    local islandNeeded = self._teleport:GetIslandByMob(targetName)
+    local currentIsland = self._teleport:GetCurrentIsland()
 
-        if islandNeeded then
-            self._combat:ResetMovement()
-            self._teleport:SmartTeleport(islandNeeded, self._state:Get("TweenSpeed"))
-            return
-        end
+    if currentIsland and islandNeeded and currentIsland ~= islandNeeded then
+        self._target:ClearTarget()
+        self._combat:ResetMovement()
+        self._teleport:SmartTeleport(islandNeeded, self._state:Get("TweenSpeed"))
+        return
     end
+
+    local currentTarget = self._target:FindNearestMob(targetName)
 
     if currentTarget then 
         local arrived = self._combat:MoveTo(currentTarget)
-        if arrived then
-            self._combat:Attack(currentTarget)
-        end
+        if arrived then self._combat:Attack(currentTarget) end
     else 
         self._combat:ResetMovement() 
     end

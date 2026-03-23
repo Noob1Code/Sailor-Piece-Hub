@@ -4,14 +4,6 @@ local Remotes = Import("core/Remotes")
 local TeleportService = {}
 TeleportService.__index = TeleportService
 
-local TeleportMap = {
-    ["Starter"] = "Starter", ["Jungle"] = "Jungle", ["Desert"] = "Desert",
-    ["Snow"] = "Snow", ["Sailor"] = "Sailor", ["Shibuya"] = "Shibuya",
-    ["Hueco Mundo"] = "HuecoMundo", ["Boss Island"] = "Boss", ["Dungeon"] = "Dungeon",
-    ["Shinjuku"] = "Shinjuku", ["Slime"] = "Slime", ["Academy"] = "Academy",
-    ["Judgement"] = "Judgement", ["Soul Society"] = "SoulSociety"
-}
-
 function TeleportService.new()
     local self = setmetatable({
         _lastTeleport = 0,
@@ -21,7 +13,49 @@ function TeleportService.new()
     return self
 end
 
+-- =========================================================
+-- 🗂️ MÉTODOS DE DADOS (Puxa direto do seu 1_Dados.lua!)
+-- =========================================================
+
+function TeleportService:GetIslands()
+    local list = {}
+    if getgenv().IslandDataMap then
+        for island, _ in pairs(getgenv().IslandDataMap) do table.insert(list, island) end
+        table.sort(list)
+    end
+    return list
+end
+
+function TeleportService:GetMobsFromIsland(islandName)
+    if getgenv().IslandDataMap and getgenv().IslandDataMap[islandName] and getgenv().IslandDataMap[islandName].Mobs then 
+        return getgenv().IslandDataMap[islandName].Mobs 
+    end
+    return {"Nenhum"}
+end
+
+function TeleportService:GetIslandByMob(mobName)
+    if getgenv().IslandDataMap then
+        for island, data in pairs(getgenv().IslandDataMap) do 
+            if data.Mobs and table.find(data.Mobs, mobName) then return island end 
+        end
+    end
+    return nil
+end
+
+function TeleportService:GetIslandByBoss(bossName)
+    if getgenv().IslandDataMap then
+        for island, data in pairs(getgenv().IslandDataMap) do 
+            if data.Bosses and table.find(data.Bosses, bossName) then return island end 
+        end
+    end
+    return nil
+end
+
 function TeleportService:IsBusy() return self._isBusy end
+
+-- =========================================================
+-- 🚀 SUA LÓGICA DE MOVIMENTO ORIGINAL (2_Funcoes.lua)
+-- =========================================================
 
 function TeleportService:SafeTeleport(targetPos, heightOffset, tweenSpeed)
     local char = GameServices.LocalPlayer.Character
@@ -37,7 +71,6 @@ function TeleportService:SafeTeleport(targetPos, heightOffset, tweenSpeed)
     return tween
 end
 
--- 🔥 SEU AutoSaveSpawn ORIGINAL (Adaptado assíncrono)
 function TeleportService:AutoSaveSpawn(targetIslandName, tweenSpeed)
     if self._savedIsland == targetIslandName then return end
 
@@ -98,7 +131,7 @@ function TeleportService:SmartTeleport(islandName, tweenSpeed)
     self._savedIsland = nil 
 
     task.spawn(function()
-        local dest = TeleportMap[islandName] or islandName
+        local dest = (getgenv().TeleportMap and getgenv().TeleportMap[islandName]) or islandName
         if Remotes.TeleportRemote then
             local char = GameServices.LocalPlayer.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")

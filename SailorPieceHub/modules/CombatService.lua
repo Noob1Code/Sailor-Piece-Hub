@@ -1,7 +1,3 @@
--- =========================================================================
--- ⚔️ CombatService
--- =========================================================================
-
 local GameServices = Import("core/GameServices")
 local Remotes = Import("core/Remotes")
 local TweenUtil = Import("utils/TweenUtil")
@@ -11,9 +7,7 @@ CombatService.__index = CombatService
 
 function CombatService.new(stateManager)
     local self = setmetatable({
-        _state = stateManager,
-        _orbitAngle = 0,
-        _currentTween = nil
+        _state = stateManager, _orbitAngle = 0, _currentTween = nil, _isTweening = false 
     }, CombatService)
     return self
 end
@@ -25,15 +19,13 @@ function CombatService:_freezeCharacter(char)
 end
 
 function CombatService:ResetMovement()
+    self._isTweening = false
     local char = GameServices.LocalPlayer.Character
     if char then
         local hum = char:FindFirstChild("Humanoid")
         if hum then hum.PlatformStand = false end
     end
-    if self._currentTween then
-        self._currentTween:Cancel()
-        self._currentTween = nil
-    end
+    if self._currentTween then self._currentTween:Cancel(); self._currentTween = nil end
 end
 
 function CombatService:_equipWeapon()
@@ -57,13 +49,17 @@ function CombatService:Attack(target)
     if not target or not target:FindFirstChild("Humanoid") then return false end
     if target.Humanoid.Health <= 0 then return false end
 
-    self:_equipWeapon()
-
-    if Remotes.CombatRemote then Remotes.CombatRemote:FireServer() end
-    if Remotes.AbilityRemote then 
-        for i = 1, 4 do Remotes.AbilityRemote:FireServer(i) end 
+    local char = GameServices.LocalPlayer.Character
+    local hrp = char and char:FindFirstChild("HumanoidRootPart")
+    local targetHrp = target:FindFirstChild("HumanoidRootPart")
+    
+    if hrp and targetHrp then
+        if (hrp.Position - targetHrp.Position).Magnitude > 80 then return false end
     end
 
+    self:_equipWeapon()
+    if Remotes.CombatRemote then Remotes.CombatRemote:FireServer() end
+    if Remotes.AbilityRemote then for i = 1, 4 do Remotes.AbilityRemote:FireServer(i) end end
     return true
 end
 
@@ -76,10 +72,8 @@ function CombatService:OrbitTarget(target, distance)
     if not targetHrp then return end
 
     self:_freezeCharacter(char)
-
     self._orbitAngle = self._orbitAngle + math.rad(15)
     local pos = targetHrp.Position + Vector3.new(math.cos(self._orbitAngle) * distance, 5, math.sin(self._orbitAngle) * distance)
-
     hrp.CFrame = CFrame.new(pos, targetHrp.Position)
     hrp.Velocity = Vector3.zero
 end
@@ -96,11 +90,7 @@ function CombatService:MoveTo(target)
     local tweenSpeed = self._state:Get("TweenSpeed") or 150
     local attackPos = self._state:Get("AttackPosition") or "Atrás"
 
-    if attackPos == "Orbital" then
-        self:OrbitTarget(target, distance)
-        return true
-    end
-
+    if attackPos == "Orbital" then self:OrbitTarget(target, distance); return true end
     self:_freezeCharacter(char)
 
     local forcedSafe = target:GetAttribute("Damage") and target:GetAttribute("Damage") > 100000
@@ -114,15 +104,28 @@ function CombatService:MoveTo(target)
     local targetCFrame = CFrame.new(pos, targetHrp.Position)
     local distToPos = (hrp.Position - pos).Magnitude
 
-    if distToPos > 1000 then return false end
-
-    if distToPos > 15 then
-        self._currentTween = TweenUtil.MoveToPosition(char, pos, tweenSpeed)
-    else
+    if distToPos > 3000 then 
+        self:ResetMovement()
         hrp.CFrame = targetCFrame
         hrp.Velocity = Vector3.zero
+        return true 
     end
 
+    if distToPos <= 60 then
+        self:ResetMovement()
+        hrp.CFrame = targetCFrame
+        hrp.Velocity = Vector3.zero
+    else
+        if not self._isTweening then
+            self._isTweening = true
+            self._currentTween = TweenUtil.MoveToPosition(char, pos, tweenSpeed)
+            if self._currentTween then
+                self._currentTween.Completed:Connect(function() self._isTweening = false end)
+            else
+                self._isTweening = false
+            end
+        end
+    end
     return true
 end
 

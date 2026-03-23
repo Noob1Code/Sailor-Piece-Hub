@@ -62,9 +62,7 @@ function TeleportService:GetIslandByBoss(bossName)
     return nil
 end
 
-function TeleportService:IsBusy()
-    return self._isBusy
-end
+function TeleportService:IsBusy() return self._isBusy end
 
 function TeleportService:GetCurrentIsland()
     local char = GameServices.LocalPlayer.Character
@@ -95,35 +93,31 @@ end
 function TeleportService:SmartTeleport(islandName, tweenSpeed)
     if self._isBusy then return end
     self._isBusy = true
-    self._savedIsland = nil
-    
+    self._savedIsland = nil 
     task.spawn(function()
-        local dest = TeleportMap[islandName] or islandName
-        if Remotes.TeleportRemote then
-            local char = GameServices.LocalPlayer.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local oldPos = hrp and hrp.Position or Vector3.zero
+        pcall(function()
+            local dest = TeleportMap[islandName] or islandName
+            if Remotes.TeleportRemote then
+                local char = GameServices.LocalPlayer.Character
+                local hrp = char and char:FindFirstChild("HumanoidRootPart")
+                local oldPos = hrp and hrp.Position or Vector3.zero
 
-            TweenUtil.StopTween(hrp)
-            if char and char:FindFirstChild("Humanoid") then
-                char.Humanoid.PlatformStand = false
-            end
+                TweenUtil.StopTween(hrp)
+                if char and char:FindFirstChild("Humanoid") then char.Humanoid.PlatformStand = false end
 
-            Remotes.TeleportRemote:FireServer(dest)
-            print("🗺️ Viajando para a ilha: " .. islandName)
+                Remotes.TeleportRemote:FireServer(dest)
+                print("🗺️ Viajando para a ilha: " .. islandName)
 
-            if hrp then
                 for i = 1, 15 do
                     task.wait(0.5)
-                    if (hrp.Position - oldPos).Magnitude > 200 then break end
+                    local currentHrp = GameServices.LocalPlayer.Character and GameServices.LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+                    if currentHrp and (currentHrp.Position - oldPos).Magnitude > 200 then break end
                 end
-            else
-                task.wait(3)
+                
+                task.wait(1.5) 
+                self:_executeSaveSpawn(islandName, tweenSpeed)
             end
-            
-            task.wait(1.5)
-            self:_executeSaveSpawn(tweenSpeed)
-        end
+        end)
         self._isBusy = false
     end)
 end

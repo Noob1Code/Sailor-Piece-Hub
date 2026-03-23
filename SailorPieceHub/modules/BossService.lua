@@ -8,7 +8,7 @@ local Remotes = Import("core/Remotes")
 local BossService = {}
 BossService.__index = BossService
 
--- 🔥 Cronômetro de Ressurreição dos Bosses Silenciosos
+-- 🔥 Cronômetro VIP (Apenas estes vão ser re-checados por tempo de 8s)
 local SilentBosses = {
     ["ThiefBoss"] = 8,
     ["DesertBoss"] = 8,
@@ -25,6 +25,7 @@ function BossService.new(stateManager, targetService, combatService, teleportSer
     return self
 end
 
+-- 📡 O SEU SNIPER DE CHAT (Event-Driven)
 function BossService:_monitorChat(mensagem)
     if not self._state:Get("AutoBoss") then return end
     local msg = string.lower(mensagem)
@@ -35,9 +36,11 @@ function BossService:_monitorChat(mensagem)
         for _, bossName in ipairs(queue) do
             local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
             if msgNoSpaces:find(baseName) then 
+                -- 🔥 Acorda o Boss de Tempo!
                 self._bossStateCache[bossName] = "Alive"
                 self._deadTimes[bossName] = nil
                 self._patience = 0 
+                print("🚨 [Boss Sniper] " .. bossName .. " APARECEU NO CHAT! Interceptando...")
             end
         end
     elseif msg:find("defeated") then
@@ -90,27 +93,36 @@ function BossService:SlowUpdate()
     if isAutoBoss and not self._wasAutoBossOn then
         self._bossStateCache = {}; self._deadTimes = {}
         self._combat:ResetMovement()
+        -- Varredura inicial: Coloca todos para checar a primeira vez!
+        for _, b in ipairs(queue) do self._bossStateCache[b] = "PendingCheck" end
     end
     self._wasAutoBossOn = isAutoBoss
 
-    -- 🔥 1. ATUALIZA O CRONÔMETRO DOS BOSSES MORTOS
+    -- 🔥 1. RESSURREIÇÃO RESTRITA: Apenas SilentBosses ganham nova chance por tempo
     for _, b in ipairs(queue) do
         if self._bossStateCache[b] == "Dead" and self._deadTimes[b] then
-            local waitTime = SilentBosses[b] or 60
-            if tick() - self._deadTimes[b] > waitTime then
-                self._bossStateCache[b] = "PendingCheck"
-                self._deadTimes[b] = nil
-                print("👑 O Boss " .. b .. " deve ter renascido. Voltando para a fila!")
+            if SilentBosses[b] then
+                if tick() - self._deadTimes[b] > SilentBosses[b] then
+                    self._bossStateCache[b] = "PendingCheck"
+                    self._deadTimes[b] = nil
+                    print("👑 Boss Silencioso " .. b .. " renasceu. Voltando para a fila!")
+                end
             end
+            -- Se for Boss de Tempo (Aizen, Sukuna) ou Invocação (Saber), 
+            -- ele simplesmente fica "Dead" aqui e NÃO gera teleporte até o chat avisar!
         end
     end
 
+    -- =========================================================
+    -- PRIORIDADE 1: INVOCAÇÃO (SUMMON EXCLUSIVO)
+    -- =========================================================
     if isAutoSummon then
         local summonBoss = self._state:Get("SelectedSummonBoss")
         if summonBoss and summonBoss ~= "Nenhum" then
             self._currentBossTargetName = summonBoss
             if not self._target:FindNearestBoss(summonBoss) then
-                if self._teleport:GetCurrentIsland() ~= "Boss Island" then
+                local currentIsland = self._teleport:GetCurrentIsland()
+                if currentIsland ~= "Boss Island" then
                     self._combat:ResetMovement()
                     self._teleport:SmartTeleport("Boss Island", self._state:Get("TweenSpeed"))
                     return
@@ -124,8 +136,10 @@ function BossService:SlowUpdate()
         end
     end
 
+    -- =========================================================
+    -- PRIORIDADE 2: FILA DE BOSSES
+    -- =========================================================
     if isAutoBoss then
-        -- 🔥 2. ESCOLHE O PRÓXIMO BOSS DA FILA
         local decidedBoss = nil
         for _, b in ipairs(queue) do
             if self._bossStateCache[b] == "Alive" then decidedBoss = b; break end
@@ -142,14 +156,10 @@ function BossService:SlowUpdate()
         self._currentBossTargetName = decidedBoss
 
         if decidedBoss then
-            -- 🔥 3. BÚSSOLA DE NAVEGAÇÃO (A mágica das múltiplas ilhas)
             local islandNeeded = self._teleport:GetIslandByBoss(decidedBoss)
-            
             if islandNeeded then
                 local currentIsland = self._teleport:GetCurrentIsland()
-                
                 if currentIsland ~= islandNeeded then
-                    -- Está na ilha errada. Para de bater, limpa o alvo e VIAJA!
                     self._target:ClearTarget()
                     self._combat:ResetMovement()
                     self._teleport:SmartTeleport(islandNeeded, self._state:Get("TweenSpeed"))
@@ -157,7 +167,6 @@ function BossService:SlowUpdate()
                 end
             end
 
-            -- 🔥 4. JÁ ESTÁ NA ILHA CERTA? PROCURA O BOSS NO MAPA!
             if not self._target:FindNearestBoss(decidedBoss) then
                 self._patience = self._patience + 1
                 local maxPatience = (self._bossStateCache[decidedBoss] == "Alive") and 10 or 4
@@ -172,7 +181,6 @@ function BossService:SlowUpdate()
                 self._patience = 0
             end
         else
-            -- Se todos os Bosses da fila estiverem "Dead" esperando renascer, limpa o alvo.
             self._currentBossTargetName = nil
         end
         return
@@ -184,7 +192,6 @@ end
 function BossService:FastUpdate()
     if not self._isActive or self._teleport:IsBusy() then return end
     
-    -- 🔥 5. LIBERA O JOGADOR QUANDO A FILA ACABAR
     if not self._currentBossTargetName then
         self._combat:ResetMovement()
         return

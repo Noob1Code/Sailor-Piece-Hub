@@ -1,7 +1,3 @@
--- =========================================================================
--- 🎯 TargetService
--- =========================================================================
-
 local GameServices = Import("core/GameServices")
 
 local TargetService = {}
@@ -27,9 +23,7 @@ function TargetService:SetTarget(target)
     if self:_isValid(target) then self._currentTarget = target end
 end
 
-function TargetService:ClearTarget()
-    self._currentTarget = nil
-end
+function TargetService:ClearTarget() self._currentTarget = nil end
 
 function TargetService:_getMyPosition()
     local char = GameServices.LocalPlayer.Character
@@ -38,9 +32,13 @@ function TargetService:_getMyPosition()
 end
 
 function TargetService:FindNearestMob(mobName)
+    local targetLower = string.lower(mobName:gsub("%s+", ""))
+
     if self:GetTarget() then
-        local currentNameBase = self._currentTarget.Name:gsub("%d+", "")
-        if mobName == "Todos" or currentNameBase == mobName then return self._currentTarget end
+        local npcNameLower = string.lower(self._currentTarget.Name:gsub("%s+", ""))
+        if mobName == "Todos" or string.find(npcNameLower, targetLower) then 
+            return self._currentTarget 
+        end
     end
 
     local npcsFolder = GameServices.Workspace:FindFirstChild("NPCs")
@@ -54,15 +52,14 @@ function TargetService:FindNearestMob(mobName)
         if self:_isValid(npc) and not npc:GetAttribute("IsTrainingDummy") then
             local isBoss = npc.Name:lower():find("boss") or npc:GetAttribute("Boss")
             if not isBoss then
-                local baseName = npc.Name:gsub("%d+", "")
-                if mobName == "Todos" or baseName == mobName then
+                local npcNameLower = string.lower(npc.Name:gsub("%s+", ""))
+                if mobName == "Todos" or string.find(npcNameLower, targetLower) then
                     local dist = (myPos - npc.HumanoidRootPart.Position).Magnitude
                     if dist < minDist then minDist = dist; closestMob = npc end
                 end
             end
         end
     end
-
     self._currentTarget = closestMob
     return closestMob
 end
@@ -88,7 +85,6 @@ function TargetService:FindNearestBoss(bossName)
             end
         end
     end
-
     self._currentTarget = closestBoss
     return closestBoss
 end

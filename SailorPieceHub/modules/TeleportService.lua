@@ -94,6 +94,7 @@ function TeleportService:SmartTeleport(islandName, tweenSpeed)
     if self._isBusy then return end
     self._isBusy = true
     self._savedIsland = nil 
+
     task.spawn(function()
         pcall(function()
             local dest = TeleportMap[islandName] or islandName
@@ -123,10 +124,7 @@ function TeleportService:SmartTeleport(islandName, tweenSpeed)
 end
 
 function TeleportService:_executeSaveSpawn(targetIslandName, tweenSpeed)
-    if self._savedIsland == targetIslandName then 
-        print("✅ Spawn já estava salvo na ilha: " .. tostring(targetIslandName))
-        return 
-    end
+    if self._savedIsland == targetIslandName then return end
 
     local char = GameServices.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
@@ -154,23 +152,29 @@ function TeleportService:_executeSaveSpawn(targetIslandName, tweenSpeed)
     end
 
     if closestPrompt and targetPart then
-        print("🚩 Salvando Spawn na nova ilha...")
+        print("🚩 Indo salvar Spawn na nova ilha...")
         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
+        local distToCrystal = (hrp.Position - targetPos).Magnitude
         
-        local tw = TweenUtil.MoveToPosition(char, targetPos, tweenSpeed or 150)
-        if tw then tw.Completed:Wait() else
+        if distToCrystal > 300 then
             hrp.CFrame = CFrame.new(targetPos)
-            task.wait(0.5)
+            task.wait(1)
+        else
+            local tw = TweenUtil.MoveToPosition(char, targetPos, tweenSpeed or 150)
+            if tw then tw.Completed:Wait() end
         end
         
-        task.wait(0.3)
+        task.wait(1)
         if fireproximityprompt then 
             fireproximityprompt(closestPrompt)
             task.wait(0.2)
             fireproximityprompt(closestPrompt)
+            
             self._savedIsland = targetIslandName
-            print("✅ Monitor atualizado: Spawn salvo em " .. targetIslandName)
+            print("✅ Spawn salvo em " .. targetIslandName)
         end
+        
+        task.wait(1.5)
     end
 end
 

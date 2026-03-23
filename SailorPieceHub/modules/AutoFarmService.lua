@@ -34,6 +34,7 @@ function AutoFarmService:Update()
         if not currentTarget then
             local islandNeeded = self._teleport:GetIslandByMob(targetName)
             if islandNeeded and self._teleport:GetCurrentIsland() ~= islandNeeded then
+                self._combat:ResetMovement()
                 self._teleport:SmartTeleport(islandNeeded, self._state:Get("TweenSpeed"))
                 return
             end

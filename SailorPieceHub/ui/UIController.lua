@@ -59,6 +59,7 @@ function UIController:Build(uiLibrary)
     self._window = uiLibrary.new("Comunidade Hub V22.2 (Arquitetura Modular)")
     
     self:_buildCombatTab()
+    self:_buildSettingsTab()
 end
 
 function UIController:_buildCombatTab()
@@ -72,14 +73,14 @@ function UIController:_buildCombatTab()
     local mobDropdown
     local bossDropdown
 
-    TabCombat:CreateDropdown("Filtrar por Área", filterOptions, "Todas", function(value)
+    TabCombat:CreateDropdown("Filtrar por Ilha", filterOptions, "Todas", function(value)
         local mobs = getMobList(value)
         local bosses = getBossList(value)
         if mobDropdown then mobDropdown.Refresh(mobs) end
         if bossDropdown then bossDropdown.Refresh(bosses) end
     end)
 
-    mobDropdown = TabCombat:CreateDropdown("Inimigo", getMobList("Todas"), self._state:Get("SelectedMob") or "Nenhum", function(value)
+    mobDropdown = TabCombat:CreateDropdown("Selecionar Inimigo", getMobList("Todas"), self._state:Get("SelectedMob") or "Nenhum", function(value)
         self._state:Set("SelectedMob", value)
     end)
 
@@ -87,8 +88,8 @@ function UIController:_buildCombatTab()
         self._state:Set("AutoFarm", value)
     end)
 
-    TabCombat:CreateLabel("--------------------------------------------------------")
-    TabCombat:CreateLabel("👑 FILA DE BOSSES")
+    TabCombat:CreateLabel("------------------------------------------------")
+    TabCombat:CreateLabel("👑 FILA DE BOSSES E SNIPER")
     
     local BossListLabel = TabCombat:CreateLabel("Fila: Nenhuma")
     
@@ -97,7 +98,7 @@ function UIController:_buildCombatTab()
         if #fila == 0 then BossListLabel.Text = "Fila: Nenhuma"
         else BossListLabel.Text = "Fila: " .. table.concat(fila, ", ") end
     end
-
+    
     local bossSelecionadoTemp = "Nenhum"
     bossDropdown = TabCombat:CreateDropdown("Selecionar Boss", getBossList("Todas"), "Nenhum", function(value)
         bossSelecionadoTemp = value
@@ -119,11 +120,11 @@ function UIController:_buildCombatTab()
         UpdateBossListLabel()
     end, Color3.fromRGB(200, 100, 60))
 
-    TabCombat:CreateToggle("Auto Boss (Fila)", self._state:Get("AutoBoss"), function(value)
+    TabCombat:CreateToggle("Auto Boss (Fila / Sniper)", self._state:Get("AutoBoss"), function(value)
         self._state:Set("AutoBoss", value)
     end)
 
-    TabCombat:CreateLabel("--------------------------------------------------------")
+    TabCombat:CreateLabel("------------------------------------------------")
     TabCombat:CreateLabel("🔮 INVOCAÇÃO DE BOSS (SUMMON)")
     local SummonBossList = {"Nenhum", "SaberBoss", "QinShiBoss", "IchigoBoss", "GilgameshBoss", "BlessedMaidenBoss", "SaberAlterBoss"}
     
@@ -135,13 +136,8 @@ function UIController:_buildCombatTab()
         self._state:Set("AutoSummon", value)
     end)
 
-    TabCombat:CreateLabel("--------------------------------------------------------")
-    TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE COMBATE E MOVIMENTO")
-
-    TabCombat:CreateTextBox("Velocidade do Voo (Padrão 150)", tostring(self._state:Get("TweenSpeed") or 150), function(value)
-        local numValue = tonumber(value) or 150
-        self._state:Set("TweenSpeed", numValue)
-    end)
+    TabCombat:CreateLabel("------------------------------------------------")
+    TabCombat:CreateLabel("⚙️ INTELIGÊNCIA DE MOVIMENTO")
 
     TabCombat:CreateDropdown("Posição de Ataque", {"Atrás", "Acima", "Abaixo", "Orbital"}, self._state:Get("AttackPosition") or "Atrás", function(value)
         self._state:Set("AttackPosition", value)
@@ -150,6 +146,13 @@ function UIController:_buildCombatTab()
     TabCombat:CreateTextBox("Distância do Alvo (Studs)", tostring(self._state:Get("Distance") or 5), function(value)
         local numValue = tonumber(value) or 5
         self._state:Set("Distance", numValue)
+    end)
+end
+
+function UIController:_buildSettingsTab()
+    local TabSettings = self._window:CreateTab("Configs", "⚙️")
+    TabSettings:CreateButton("Limpar Cache de Alvos", function()
+        self._state:Set("Command_ClearTargets", true)
     end)
 end
 

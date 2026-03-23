@@ -35,7 +35,7 @@ function TeleportService.new()
     local self = setmetatable({
         _lastTeleport = 0,
         _isBusy = false,
-        _savedIsland = nil
+        _savedIsland = nil 
     }, TeleportService)
     return self
 end
@@ -154,17 +154,12 @@ function TeleportService:_executeSaveSpawn(targetIslandName, tweenSpeed)
     if closestPrompt and targetPart then
         print("🚩 Indo salvar Spawn na nova ilha...")
         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
-        local distToCrystal = (hrp.Position - targetPos).Magnitude
         
-        if distToCrystal > 300 then
-            hrp.CFrame = CFrame.new(targetPos)
-            task.wait(1)
-        else
-            local tw = TweenUtil.MoveToPosition(char, targetPos, tweenSpeed or 150)
-            if tw then tw.Completed:Wait() end
-        end
+        local tw = TweenUtil.MoveToPosition(char, targetPos, tweenSpeed or 150)
+        if tw then tw.Completed:Wait() end
         
-        task.wait(1)
+        task.wait(0.5)
+        
         if fireproximityprompt then 
             fireproximityprompt(closestPrompt)
             task.wait(0.2)
@@ -174,7 +169,7 @@ function TeleportService:_executeSaveSpawn(targetIslandName, tweenSpeed)
             print("✅ Spawn salvo em " .. targetIslandName)
         end
         
-        task.wait(1.5)
+        task.wait(1)
     end
 end
 

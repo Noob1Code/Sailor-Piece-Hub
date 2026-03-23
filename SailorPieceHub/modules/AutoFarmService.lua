@@ -25,24 +25,34 @@ function AutoFarmService:Update()
     if self._teleport:IsBusy() then return end
 
     self._wasFarming = true
-    local currentTarget = self._target:GetTarget()
     local targetName = self._state:Get("SelectedMob") or "Nenhum"
     
-    if not currentTarget and targetName ~= "Nenhum" then
-        currentTarget = self._target:FindNearestMob(targetName)
-        
-        if not currentTarget then
-            local islandNeeded = self._teleport:GetIslandByMob(targetName)
-            if islandNeeded and self._teleport:GetCurrentIsland() ~= islandNeeded then
-                self._combat:ResetMovement()
-                self._teleport:SmartTeleport(islandNeeded, self._state:Get("TweenSpeed"))
-                return
-            end
+    if targetName == "Nenhum" then return end
+
+    local currentTarget = self._target:FindNearestMob(targetName)
+    
+    if not currentTarget then
+        local TeleportData = Import("modules/TeleportService").new()
+        local islandNeeded = nil
+        for island, data in pairs(getgenv().IslandDataMap or {}) do 
+            if data.Mobs and table.find(data.Mobs, targetName) then islandNeeded = island; break end 
+        end
+
+        if islandNeeded then
+            self._combat:ResetMovement()
+            self._teleport:SmartTeleport(islandNeeded, self._state:Get("TweenSpeed"))
+            return
         end
     end
 
-    if currentTarget then self._combat:MoveTo(currentTarget); self._combat:Attack(currentTarget)
-    else self._combat:ResetMovement() end
+    if currentTarget then 
+        local arrived = self._combat:MoveTo(currentTarget)
+        if arrived then
+            self._combat:Attack(currentTarget)
+        end
+    else 
+        self._combat:ResetMovement() 
+    end
 end
 
 return AutoFarmService

@@ -34,7 +34,8 @@ local TeleportMap = {
 function TeleportService.new()
     local self = setmetatable({
         _lastTeleport = 0,
-        _isBusy = false
+        _isBusy = false,
+        _savedIsland = nil
     }, TeleportService)
     return self
 end
@@ -94,6 +95,7 @@ end
 function TeleportService:SmartTeleport(islandName, tweenSpeed)
     if self._isBusy then return end
     self._isBusy = true
+    self._savedIsland = nil
     
     task.spawn(function()
         local dest = TeleportMap[islandName] or islandName
@@ -126,7 +128,12 @@ function TeleportService:SmartTeleport(islandName, tweenSpeed)
     end)
 end
 
-function TeleportService:_executeSaveSpawn(tweenSpeed)
+function TeleportService:_executeSaveSpawn(targetIslandName, tweenSpeed)
+    if self._savedIsland == targetIslandName then 
+        print("✅ Spawn já estava salvo na ilha: " .. tostring(targetIslandName))
+        return 
+    end
+
     local char = GameServices.LocalPlayer.Character
     if not char or not char:FindFirstChild("HumanoidRootPart") then return end
     
@@ -153,20 +160,22 @@ function TeleportService:_executeSaveSpawn(tweenSpeed)
     end
 
     if closestPrompt and targetPart then
-        print("🚩 Salvando Spawn...")
+        print("🚩 Salvando Spawn na nova ilha...")
         local targetPos = targetPart.Position + Vector3.new(0, 3, 0)
         
-        local dist = (hrp.Position - targetPos).Magnitude
-        local tInfo = TweenInfo.new(math.max(0.1, dist / (tweenSpeed or 150)), Enum.EasingStyle.Linear)
-        local tw = GameServices.TweenService:Create(hrp, tInfo, {CFrame = CFrame.new(targetPos)})
-        tw:Play()
-        tw.Completed:Wait()
+        local tw = TweenUtil.MoveToPosition(char, targetPos, tweenSpeed or 150)
+        if tw then tw.Completed:Wait() else
+            hrp.CFrame = CFrame.new(targetPos)
+            task.wait(0.5)
+        end
         
         task.wait(0.3)
         if fireproximityprompt then 
             fireproximityprompt(closestPrompt)
             task.wait(0.2)
             fireproximityprompt(closestPrompt)
+            self._savedIsland = targetIslandName
+            print("✅ Monitor atualizado: Spawn salvo em " .. targetIslandName)
         end
     end
 end

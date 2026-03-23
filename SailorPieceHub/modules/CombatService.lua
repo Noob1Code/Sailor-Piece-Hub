@@ -1,13 +1,12 @@
 local GameServices = Import("core/GameServices")
 local Remotes = Import("core/Remotes")
-local TweenUtil = Import("utils/TweenUtil")
 
 local CombatService = {}
 CombatService.__index = CombatService
 
 function CombatService.new(stateManager)
     local self = setmetatable({
-        _state = stateManager, _orbitAngle = 0, _currentTween = nil
+        _state = stateManager, _orbitAngle = 0
     }, CombatService)
     return self
 end
@@ -23,10 +22,6 @@ function CombatService:ResetMovement()
     if char then
         local hum = char:FindFirstChild("Humanoid")
         if hum then hum.PlatformStand = false end
-    end
-    if self._currentTween then 
-        self._currentTween:Cancel()
-        self._currentTween = nil 
     end
 end
 
@@ -51,17 +46,12 @@ function CombatService:Attack(target)
     if not target or not target:FindFirstChild("Humanoid") then return false end
     if target.Humanoid.Health <= 0 then return false end
 
-    local char = GameServices.LocalPlayer.Character
-    local hrp = char and char:FindFirstChild("HumanoidRootPart")
-    local targetHrp = target:FindFirstChild("HumanoidRootPart")
-    
-    if hrp and targetHrp then
-        if (hrp.Position - targetHrp.Position).Magnitude > 80 then return false end
-    end
-
     self:_equipWeapon()
-    if Remotes.CombatRemote then Remotes.CombatRemote:FireServer() end
-    if Remotes.AbilityRemote then for i = 1, 4 do Remotes.AbilityRemote:FireServer(i) end end
+    
+    pcall(function()
+        if Remotes.CombatRemote then Remotes.CombatRemote:FireServer() end
+        if Remotes.AbilityRemote then for i = 1, 4 do Remotes.AbilityRemote:FireServer(i) end end
+    end)
     return true
 end
 
@@ -88,38 +78,41 @@ function CombatService:MoveTo(target)
     local targetHrp = target:FindFirstChild("HumanoidRootPart")
     if not targetHrp then return false end
 
-    local distance = self._state:Get("Distance") or 5
+    local distanceConfig = self._state:Get("Distance") or 5
     local tweenSpeed = self._state:Get("TweenSpeed") or 150
     local attackPos = self._state:Get("AttackPosition") or "Atrás"
 
-    if attackPos == "Orbital" then self:OrbitTarget(target, distance); return true end
     self:_freezeCharacter(char)
 
     local forcedSafe = target:GetAttribute("Damage") and target:GetAttribute("Damage") > 100000
     if forcedSafe and attackPos == "Abaixo" then attackPos = "Acima" end
 
     local pos
-    if attackPos == "Atrás" then pos = targetHrp.Position - (targetHrp.CFrame.LookVector * distance)
-    elseif attackPos == "Abaixo" then pos = targetHrp.Position + Vector3.new(0, -distance, 0)
-    else pos = targetHrp.Position + Vector3.new(0, distance, 0) end
+    if attackPos == "Orbital" then 
+        self:OrbitTarget(target, distanceConfig)
+        return true
+    elseif attackPos == "Atrás" then 
+        pos = targetHrp.Position - (targetHrp.CFrame.LookVector * distanceConfig)
+    elseif attackPos == "Abaixo" then 
+        pos = targetHrp.Position + Vector3.new(0, -distanceConfig, 0)
+    else 
+        pos = targetHrp.Position + Vector3.new(0, distanceConfig, 0) 
+    end
 
     local targetCFrame = CFrame.new(pos, targetHrp.Position)
-    local distToPos = (hrp.Position - pos).Magnitude
+    local distance = (hrp.Position - pos).Magnitude
 
-    if distToPos <= 20 then
-        self:ResetMovement()
+    if distance > 1000 then 
+        return false 
+    elseif distance > 15 then
+        local tempo = distance / tweenSpeed
+        if tempo < 0.1 then tempo = 0.1 end
+        GameServices.TweenService:Create(hrp, TweenInfo.new(tempo, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
+    else
         hrp.CFrame = targetCFrame
         hrp.Velocity = Vector3.zero
-    else
-        if not self._currentTween then
-            self._currentTween = TweenUtil.MoveToPosition(char, pos, tweenSpeed)
-            if self._currentTween then
-                self._currentTween.Completed:Connect(function() 
-                    self._currentTween = nil 
-                end)
-            end
-        end
     end
+
     return true
 end
 

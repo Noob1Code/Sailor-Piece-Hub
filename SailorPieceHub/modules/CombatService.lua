@@ -7,7 +7,7 @@ CombatService.__index = CombatService
 
 function CombatService.new(stateManager)
     local self = setmetatable({
-        _state = stateManager, _orbitAngle = 0, _currentTween = nil, _isTweening = false 
+        _state = stateManager, _orbitAngle = 0, _currentTween = nil
     }, CombatService)
     return self
 end
@@ -19,13 +19,15 @@ function CombatService:_freezeCharacter(char)
 end
 
 function CombatService:ResetMovement()
-    self._isTweening = false
     local char = GameServices.LocalPlayer.Character
     if char then
         local hum = char:FindFirstChild("Humanoid")
         if hum then hum.PlatformStand = false end
     end
-    if self._currentTween then self._currentTween:Cancel(); self._currentTween = nil end
+    if self._currentTween then 
+        self._currentTween:Cancel()
+        self._currentTween = nil 
+    end
 end
 
 function CombatService:_equipWeapon()
@@ -116,13 +118,12 @@ function CombatService:MoveTo(target)
         hrp.CFrame = targetCFrame
         hrp.Velocity = Vector3.zero
     else
-        if not self._isTweening then
-            self._isTweening = true
+        if not self._currentTween then
             self._currentTween = TweenUtil.MoveToPosition(char, pos, tweenSpeed)
             if self._currentTween then
-                self._currentTween.Completed:Connect(function() self._isTweening = false end)
-            else
-                self._isTweening = false
+                self._currentTween.Completed:Connect(function() 
+                    self._currentTween = nil 
+                end)
             end
         end
     end

@@ -1,3 +1,8 @@
+-- =========================================================================
+-- 🧠 MainController
+-- =========================================================================
+local Import = getgenv().Import -- 🔥 PROTEÇÃO ANTI-CRASH DO EXECUTOR
+
 local StateManager = Import("core/StateManager")
 local LoopController = Import("controllers/LoopController")
 local TargetService = Import("modules/TargetService")
@@ -26,7 +31,6 @@ function MainController.new()
     self._targetService = TargetService.new()
     self._combatService = CombatService.new(self._stateManager)
     
-    local TeleportService = Import("modules/TeleportService")
     self._teleportService = TeleportService.new()
     
     self._autoFarmService = AutoFarmService.new(self._stateManager, self._targetService, self._combatService, self._teleportService)

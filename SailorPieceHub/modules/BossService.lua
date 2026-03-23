@@ -4,13 +4,18 @@ local Remotes = Import("core/Remotes")
 local BossService = {}
 BossService.__index = BossService
 
+local SilentBosses = {
+    ["ThiefBoss"] = 8,
+    ["DesertBoss"] = 8,
+    ["SnowBoss"] = 8,
+    ["PandaMiniBoss"] = 8
+}
+
 function BossService.new(stateManager, targetService, combatService, teleportService)
     local self = setmetatable({
-        _state = stateManager, _target = targetService,
-        _combat = combatService, _teleport = teleportService,
-        _isActive = false, _bossStateCache = {}, _chatConnections = {},
-        _lastSummonTime = 0, _patience = 0, _currentBossTargetName = nil,
-        _wasAutoBossOn = false
+        _state = stateManager, _target = targetService, _combat = combatService, _teleport = teleportService,
+        _isActive = false, _bossStateCache = {}, _deadTimes = {}, _chatConnections = {},
+        _lastSummonTime = 0, _patience = 0, _currentBossTargetName = nil, _wasAutoBossOn = false
     }, BossService)
     return self
 end
@@ -24,18 +29,26 @@ function BossService:_monitorChat(mensagem)
     if msg:find("spawned") then
         for _, bossName in ipairs(queue) do
             local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-            if msgNoSpaces:find(baseName) then self._bossStateCache[bossName] = "Alive"; self._patience = 0 end
+            if msgNoSpaces:find(baseName) then 
+                self._bossStateCache[bossName] = "Alive"
+                self._deadTimes[bossName] = nil
+                self._patience = 0 
+            end
         end
     elseif msg:find("defeated") then
         for _, bossName in ipairs(queue) do
             local baseName = string.lower(bossName:gsub("Boss", ""):gsub("Mini", "")):gsub("%s+", "")
-            if msgNoSpaces:find(baseName) then self._bossStateCache[bossName] = "Dead"; self._patience = 0 end
+            if msgNoSpaces:find(baseName) then 
+                self._bossStateCache[bossName] = "Dead"
+                self._deadTimes[bossName] = tick()
+                self._patience = 0 
+            end
         end
     end
 end
 
 function BossService:Start()
-    self._isActive = true; self._bossStateCache = {}
+    self._isActive = true; self._bossStateCache = {}; self._deadTimes = {}
     pcall(function()
         local TextChatService = game:GetService("TextChatService")
         if TextChatService then
@@ -67,12 +80,22 @@ function BossService:SlowUpdate()
 
     local isAutoBoss = self._state:Get("AutoBoss")
     local isAutoSummon = self._state:Get("AutoSummon")
+    local queue = self._state:Get("SelectedBosses") or {}
 
     if isAutoBoss and not self._wasAutoBossOn then
-        self._bossStateCache = {}
-        print("👑 Auto Boss ligado! Resetando cache de bosses.")
+        self._bossStateCache = {}; self._deadTimes = {}
     end
     self._wasAutoBossOn = isAutoBoss
+
+    for _, b in ipairs(queue) do
+        if self._bossStateCache[b] == "Dead" and self._deadTimes[b] then
+            local waitTime = SilentBosses[b] or 60
+            if tick() - self._deadTimes[b] > waitTime then
+                self._bossStateCache[b] = "PendingCheck"
+                self._deadTimes[b] = nil
+            end
+        end
+    end
 
     if isAutoSummon then
         local summonBoss = self._state:Get("SelectedSummonBoss")
@@ -93,9 +116,7 @@ function BossService:SlowUpdate()
     end
 
     if isAutoBoss then
-        local queue = self._state:Get("SelectedBosses") or {}
         local decidedBoss = nil
-
         for _, b in ipairs(queue) do
             if self._bossStateCache[b] == "Alive" then decidedBoss = b; break end
         end
@@ -121,7 +142,9 @@ function BossService:SlowUpdate()
             local maxPatience = (self._bossStateCache[decidedBoss] == "Alive") and 10 or 4
             
             if self._patience > maxPatience then
-                self._bossStateCache[decidedBoss] = "Dead"; self._patience = 0; self._currentBossTargetName = nil
+                self._bossStateCache[decidedBoss] = "Dead"
+                self._deadTimes[decidedBoss] = tick()
+                self._patience = 0; self._currentBossTargetName = nil
             end
         else
             self._patience = 0

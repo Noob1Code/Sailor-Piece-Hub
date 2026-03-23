@@ -105,7 +105,7 @@ function CombatService:MoveTo(target)
 
     local targetCFrame = CFrame.new(pos, targetHrp.Position)
     local distToPos = (hrp.Position - pos).Magnitude
-    
+
     if distToPos > 300 then 
         self:ResetMovement()
         hrp.CFrame = targetCFrame

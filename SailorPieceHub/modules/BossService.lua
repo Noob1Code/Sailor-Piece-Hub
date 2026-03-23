@@ -103,6 +103,7 @@ function BossService:SlowUpdate()
             self._currentBossTargetName = summonBoss
             if not self._target:FindNearestBoss(summonBoss) then
                 if self._teleport:GetCurrentIsland() ~= "Boss Island" then
+                    self._combat:ResetMovement()
                     self._teleport:SmartTeleport("Boss Island", self._state:Get("TweenSpeed"))
                     return
                 end
@@ -134,6 +135,7 @@ function BossService:SlowUpdate()
         if decidedBoss and not self._target:FindNearestBoss(decidedBoss) then
             local targetIsland = self._teleport:GetIslandByBoss(decidedBoss)
             if targetIsland and self._teleport:GetCurrentIsland() ~= targetIsland then
+                self._combat:ResetMovement()
                 self._teleport:SmartTeleport(targetIsland, self._state:Get("TweenSpeed"))
                 return
             end
